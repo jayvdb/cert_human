@@ -38,6 +38,8 @@ TODO items
 **************************
 
 * I have no test suite setup. I know. That's horrible. But I've already spent too much time on this. I'll get to it eventually.
+* Coverage support
+* Tox support
 
 .. |MIT license| image:: https://img.shields.io/badge/License-MIT-blue.svg
    :target: https://lbesson.mit-license.org/
