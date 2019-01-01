@@ -155,8 +155,8 @@ def check_urllib3_patch():
         (:obj:`CertHumanError`): if using_urllib3_patch() returns False.
     """
     if not using_urllib3_patch():
-        error = "Not using WithCert classes in {}, use enable_urllib3_patch()"
-        error = error.format(HTTPSConnectionPool)
+        error = "Not using WithCert classes in {o}, use enable_urllib3_patch()"
+        error = error.format(o=HTTPSConnectionPool)
         raise CertHumanError(error)
 
 
@@ -298,7 +298,7 @@ class CertStore(object):
         """Constructor.
 
         Args:
-            x509 (x509.Certificate): SSL cert in x509 format.
+            x509 (:obj:`x509.Certificate`): SSL cert in x509 format.
         """
         self._x509 = x509
         self._pem = x509_to_pem(x509)
@@ -308,7 +308,7 @@ class CertStore(object):
     def __str__(self):
         """Show dump_str_info."""
         ret = "{cls}:\n{info}"
-        ret = ret.format(cls=clsname(self), info=indent(self.dump_str_info))
+        ret = ret.format(cls=clsname(obj=self), info=indent(txt=self.dump_str_info))
         return ret
 
     def __repr__(self):
@@ -333,7 +333,8 @@ class CertStore(object):
             (:obj:`CertStore`)
         """
         with ssl_socket(host=host, port=port, sslv2=sslv2) as ssl_sock:
-            return cls(ssl_sock.get_peer_certificate())
+            x509 = ssl_sock.get_peer_certificate()
+        return cls(x509=x509)
 
     @classmethod
     def new_from_host_requests(cls, host, port=443, verify=False, timeout=5):
@@ -354,7 +355,7 @@ class CertStore(object):
             (:obj:`CertStore`)
         """
         response = get_response(host=host, port=port, verify=verify, timeout=timeout)
-        return cls(response.raw.peer_cert)
+        return cls(x509=response.raw.peer_cert)
 
     @classmethod
     def new_from_response_obj(cls, response):
@@ -377,7 +378,7 @@ class CertStore(object):
         Returns:
             (:obj:`CertStore`)
         """
-        return cls(response.raw.peer_cert)
+        return cls(x509=response.raw.peer_cert)
 
     @classmethod
     def new_from_pem_str(cls, pem):
@@ -389,7 +390,7 @@ class CertStore(object):
         Returns:
             (:obj:`CertStore`)
         """
-        return cls(pem_to_x509(pem))
+        return cls(x509=pem_to_x509(pem=pem))
 
     @property
     def pem(self):
@@ -600,7 +601,7 @@ class CertStore(object):
         Returns:
             (:obj:`str`).
         """
-        return hexify(self.asn1.signature)
+        return hexify(obj=self.asn1.signature)
 
     @property
     def signature_str(self):
@@ -637,7 +638,7 @@ class CertStore(object):
             (:obj:`str` or :obj:`int`): int if algorithm is 'ec', or hex str.
         """
         ret = self._cert_native["serial_number"]
-        return hexify(ret) if not self._is_ec else ret
+        return hexify(obj=ret) if not self._is_ec else ret
 
     @property
     def serial_number_str(self):
@@ -693,7 +694,7 @@ class CertStore(object):
         Returns:
             (:obj:`str`)
         """
-        return "{}".format(self.not_valid_before)
+        return "{o}".format(o=self.not_valid_before)
 
     @property
     def not_valid_after(self):
@@ -711,7 +712,7 @@ class CertStore(object):
         Returns:
             (:obj:`str`)
         """
-        return "{}".format(self.not_valid_after)
+        return "{o}".format(o=self.not_valid_after)
 
     @property
     def extensions(self):
@@ -740,11 +741,11 @@ class CertStore(object):
             (:obj:`str`)
         """
         ret = []
-        for idx, ext in enumerate(self._extensions):
-            name, obj = ext
-            obj_str = self._extension_str(obj)
+        for idx, ext_items in enumerate(self._extensions):
+            name, ext = ext_items
+            ext_str = self._extension_str(ext=ext)
             m = "Extension {i}, name={name}, value={value}"
-            m = m.format(i=idx + 1, name=name, value=obj_str)
+            m = m.format(i=idx + 1, name=name, value=ext_str)
             ret.append(m)
         return "\n".join(ret)
 
@@ -831,7 +832,7 @@ class CertStore(object):
         Returns:
             (:obj:`str`)
         """
-        return jdump(self.dump_json_friendly)
+        return jdump(obj=self.dump_json_friendly)
 
     @property
     def dump_str(self):
@@ -854,21 +855,21 @@ class CertStore(object):
         Returns:
             (:obj:`str`)
         """
-        tmpl = "{}: {}".format
+        tmpl = "{title}: {info}".format
         items = [
-            tmpl("Issuer", self.issuer_str),
-            tmpl("Subject", self.subject_str),
-            tmpl("Subject Alternate Names", self.subject_alt_names_str),
-            tmpl("Fingerprint SHA1", self.fingerprint_sha1),
-            tmpl("Fingerprint SHA256", self.fingerprint_sha256),
+            tmpl(title="Issuer", info=self.issuer_str),
+            tmpl(title="Subject", info=self.subject_str),
+            tmpl(title="Subject Alternate Names", info=self.subject_alt_names_str),
+            tmpl(title="Fingerprint SHA1", info=self.fingerprint_sha1),
+            tmpl(title="Fingerprint SHA256", info=self.fingerprint_sha256),
             ", ".join([
-                tmpl("Expired", self.is_expired),
-                tmpl("Not Valid Before", self.not_valid_before_str),
-                tmpl("Not Valid After", self.not_valid_after_str),
+                tmpl(title="Expired", info=self.is_expired),
+                tmpl(title="Not Valid Before", info=self.not_valid_before_str),
+                tmpl(title="Not Valid After", info=self.not_valid_after_str),
             ]),
             ", ".join([
-                tmpl("Self Signed", self.is_self_signed),
-                tmpl("Self Issued", self.is_self_issued),
+                tmpl(title="Self Signed", info=self.is_self_signed),
+                tmpl(title="Self Issued", info=self.is_self_issued),
             ]),
         ]
         return "\n".join(items)
@@ -882,7 +883,7 @@ class CertStore(object):
         """
         exts = "Extensions:\n{v}".format
         items = [
-            exts(v=indent(self.extensions_str)),
+            exts(v=indent(txt=self.extensions_str)),
         ]
         return "\n".join(items)
 
@@ -902,12 +903,12 @@ class CertStore(object):
                 a=self.public_key_algorithm,
                 s=self.public_key_size,
                 e=self.public_key_exponent,
-                v=indent(self.public_key_str),
+                v=indent(txt=self.public_key_str),
             ),
             "",
-            sig(a=self.signature_algorithm, v=indent(self.signature_str)),
+            sig(a=self.signature_algorithm, v=indent(txt=self.signature_str)),
             "",
-            sn(v=indent(self.serial_number_str)),
+            sn(v=indent(txt=self.serial_number_str)),
         ]
         return "\n".join(items)
 
@@ -929,7 +930,7 @@ class CertStore(object):
             (:obj:`list` of :obj:`list`)
         """
         exts = [self.x509.get_extension(i) for i in range(self.x509.get_extension_count())]
-        return [[utf8(e.get_short_name()), e] for e in exts]
+        return [[utf8(obj=e.get_short_name()), e] for e in exts]
 
     @property
     def _public_key_native(self):
@@ -972,12 +973,12 @@ class CertChainStore(object):
             x509 (:obj:`list` of :obj:`x509.Certificate`): List of SSL certs in x509 format.
         """
         self._x509 = x509
-        self._certs = [CertStore(c) for c in x509]
+        self._certs = [CertStore(x509=c) for c in x509]
 
     def __str__(self):
         """Show most useful information of all certs in cert chain."""
         ret = "{cls} with {num} certs:{certs}"
-        ret = ret.format(cls=clsname(self), num=len(self), certs=self.dump_str_info)
+        ret = ret.format(cls=clsname(obj=self), num=len(self), certs=self.dump_str_info)
         return ret
 
     def __repr__(self):
@@ -999,9 +1000,9 @@ class CertChainStore(object):
             value (:obj:`str` or :obj:`x509.Certificate` or :obj:`CertStore`)
         """
         if isinstance(value, six.string_types):
-            self._certs.append(CertStore.new_from_pem(value))
+            self._certs.append(CertStore.new_from_pem(pem=value))
         elif isinstance(value, asn1crypto.x509.Certificate):
-            self._certs.append(CertStore(value))
+            self._certs.append(CertStore(x509=value))
         elif isinstance(value, CertStore):
             self._certs.append(value)
 
@@ -1023,7 +1024,7 @@ class CertChainStore(object):
             (:obj:`CertChainStore`)
         """
         with ssl_socket(host=host, port=port, sslv2=sslv2) as ssl_sock:
-            return cls(ssl_sock.get_peer_cert_chain())
+            return cls(x509=ssl_sock.get_peer_cert_chain())
 
     @classmethod
     def new_from_host_requests(cls, host, port=443, verify=False, timeout=5):
@@ -1044,7 +1045,7 @@ class CertChainStore(object):
             (:obj:`CertChainStore`)
         """
         response = get_response(host=host, port=port, verify=verify, timeout=timeout)
-        return cls(response.raw.peer_cert_chain)
+        return cls(x509=response.raw.peer_cert_chain)
 
     @classmethod
     def new_from_response_obj(cls, response):
@@ -1068,7 +1069,7 @@ class CertChainStore(object):
             (:obj:`CertChainStore`)
         """
         x509 = response.raw.peer_cert_chain
-        return cls(x509)
+        return cls(x509=x509)
 
     @classmethod
     def new_from_pem_str(cls, pem):
@@ -1080,7 +1081,7 @@ class CertChainStore(object):
         Returns:
             (:obj:`CertChainStore`)
         """
-        return cls(pems_to_x509(pem))
+        return cls(x509=pems_to_x509(pem=pem))
 
     @property
     def certs(self):
@@ -1176,7 +1177,7 @@ class CertChainStore(object):
         """
         tmpl = "{c} #{i}\n{s}".format
         items = [
-            tmpl(c=clsname(c), i=i + 1, s=indent(c.dump_str))
+            tmpl(c=clsname(obj=c), i=i + 1, s=indent(txt=c.dump_str))
             for i, c in enumerate(self._certs)
         ]
         return "\n  " + "\n  ".join(items)
@@ -1192,9 +1193,9 @@ class CertChainStore(object):
         items = [
             tmpl(
                 di="-" * i + "/" if i else "",
-                c=clsname(c),
+                c=clsname(obj=c),
                 i=i + 1,
-                s=indent(c.dump_str_info),
+                s=indent(txt=c.dump_str_info),
             )
             for i, c in enumerate(self._certs)
         ]
@@ -1209,7 +1210,7 @@ class CertChainStore(object):
         """
         tmpl = "{c} #{i}\n{s}".format
         items = [
-            tmpl(c=clsname(c), i=i + 1, s=indent(c.dump_str_key))
+            tmpl(c=clsname(obj=c), i=i + 1, s=indent(txt=c.dump_str_key))
             for i, c in enumerate(self._certs)
         ]
         return "\n  " + "\n  ".join(items)
@@ -1223,7 +1224,7 @@ class CertChainStore(object):
         """
         tmpl = "{c} #{i}\n{s}".format
         items = [
-            tmpl(c=clsname(c), i=i + 1, s=indent(c.dump_str_exts))
+            tmpl(c=clsname(obj=c), i=i + 1, s=indent(txt=c.dump_str_exts))
             for i, c in enumerate(self._certs)
         ]
         return "\n  " + "\n  ".join(items)
@@ -1254,8 +1255,9 @@ def indent(txt, n=4):
     Returns:
         (:obj:`str`)
     """
-    txt = "{}".format(txt)
-    return "\n".join(["{s}{line}".format(s=" " * n, line=l) for l in txt.splitlines()])
+    txt = "{t}".format(t=txt)
+    tmpl = "{s}{line}".format
+    return "\n".join([tmpl(s=" " * n, line=l) for l in txt.splitlines()])
 
 
 def clsname(obj):
@@ -1298,7 +1300,7 @@ def hexify(obj):
         ret = binascii.hexlify(obj)
     elif isinstance(obj, six.integer_types):
         ret = format(obj, "X")
-    ret = (utf8(ret) if isinstance(ret, six.binary_type) else ret).upper()
+    ret = (utf8(obj=ret) if isinstance(ret, six.binary_type) else ret).upper()
     return ret
 
 
@@ -1419,7 +1421,7 @@ def pems_to_x509(pem):
     Returns:
         (:obj:`list` of :obj:`OpenSSL.crypto.X509`)
     """
-    return [pem_to_x509(pem) for pem in find_certs(txt=pem)]
+    return [pem_to_x509(pem=pem) for pem in find_certs(txt=pem)]
 
 
 def x509_to_pem(x509):
@@ -1432,7 +1434,7 @@ def x509_to_pem(x509):
         (:obj:`str`)
     """
     pem = pyopenssl.OpenSSL.crypto.dump_certificate(PEM_TYPE, x509)
-    return utf8(pem)
+    return utf8(obj=pem)
 
 
 def x509_to_der(x509):
@@ -1456,7 +1458,7 @@ def x509_to_asn1(x509):
     Returns:
         (x509.Certificate)
     """
-    return der_to_asn1(x509_to_der(x509))
+    return der_to_asn1(der=x509_to_der(x509=x509))
 
 
 def der_to_asn1(der):
