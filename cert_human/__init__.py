@@ -22,7 +22,7 @@ from requests.packages import urllib3
 
 from .__version__ import __title__, __description__, __url__, __version__  # noqa
 from .__version__ import __author__, __author_email__, __license__  # noqa
-from .__version__ import __copyright__  # noqa
+from .__version__ import __copyright__, __project__  # noqa
 
 try:
     import pathlib
@@ -38,7 +38,6 @@ ResponseCls = HTTPSConnectionPool.ResponseCls
 
 
 class HTTPSConnectionWithCert(ConnectionCls):
-
     def connect(self):
         super(HTTPSConnectionWithCert, self).connect()
         self._set_cert_attrs()
@@ -58,7 +57,6 @@ class HTTPSConnectionWithCert(ConnectionCls):
 
 
 class HTTPSResponseWithCert(ResponseCls):
-
     def __init__(self, *args, **kwargs):
         super(HTTPSResponseWithCert, self).__init__(*args, **kwargs)
         self._set_cert_attrs()
@@ -66,8 +64,8 @@ class HTTPSResponseWithCert(ResponseCls):
     def _set_cert_attrs(self):
         """Add cert info from a HTTPSConnection object to a HTTPSResponse object.
 
-        This allows accessing the attributes in a HTTPSConnectionWithCert from a
-        requests.Response object like so:
+        This allows accessing the attributes in a HTTPSConnectionWithCert
+        from a requests.Response.raw object like so:
 
           - :obj:`requests.Response`.raw.peer_cert
           - :obj:`requests.Response`.raw.peer_cert_chain
@@ -87,7 +85,8 @@ def enable_urllib3_patch():
 
         >>> cert_human.enable_urllib3_patch()
         >>> response1 = requests.get("https://www.google.com")
-        >>> response2 = requests.get("https://cyborg", verify=False)  # self-signed, don't verify
+        >>> # self-signed, don't verify
+        >>> response2 = requests.get("https://cyborg", verify=False)
         >>> print(response1.raw.peer_cert.get_subject().get_components())
         >>> print(response2.raw.peer_cert.get_subject().get_components())
         >>> # optionally disable the urllib3 patch once you no longer need
@@ -96,10 +95,9 @@ def enable_urllib3_patch():
 
     Notes:
 
-        Changes :attr:`urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls` and
-        :attr:`urllib3.connectionpool.HTTPConnectionPool.ResponseCls` in
-        :obj:`urllib3.connectionpool.HTTPSConnectionPool` to the WithCert classes.
-
+        Modifies :obj:`urllib3.connectionpool.HTTPSConnectionPool` and
+        :attr:`urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls`
+        :attr:`urllib3.connectionpool.HTTPConnectionPool.ResponseCls` to the WithCert classes.
     """
     HTTPSConnectionPool.ConnectionCls = HTTPSConnectionWithCert
     HTTPSConnectionPool.ResponseCls = HTTPSResponseWithCert
@@ -110,9 +108,9 @@ def disable_urllib3_patch():
 
     Notes:
 
-        Changes :attr:`urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls` and
-        :attr:`urllib3.connectionpool.HTTPConnectionPool.ResponseCls` in
-        :obj:`urllib3.connectionpool.HTTPSConnectionPool` back to their original classes.
+        Modifies :obj:`urllib3.connectionpool.HTTPSConnectionPool`
+        :attr:`urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls` and
+        :attr:`urllib3.connectionpool.HTTPConnectionPool.ResponseCls` back to their originals.
     """
     HTTPSConnectionPool.ConnectionCls = ConnectionCls
     HTTPSConnectionPool.ResponseCls = ResponseCls
@@ -138,7 +136,7 @@ def urllib3_patch():
 
 
 def using_urllib3_patch():
-    """Check if HTTPSConnectionPool is using the WithCert Connect/Response classes.
+    """Check if urllib3 is patched with the WithCert classes.
 
     Returns:
         (:obj:`bool`)
@@ -149,7 +147,7 @@ def using_urllib3_patch():
 
 
 def check_urllib3_patch():
-    """Throw exception if HTTPSConnectionPool is not using the WithCert Connect/Response classes.
+    """Throw exception if urllib3 is not patched with the WithCert classes.
 
     Raises:
         (:obj:`CertHumanError`): if using_urllib3_patch() returns False.
@@ -160,8 +158,55 @@ def check_urllib3_patch():
         raise CertHumanError(error)
 
 
-def get_response(host, port=443, verify=False, timeout=5, scheme="https://", nowarn=True,
-                 **kwargs):
+def build_url(host, port=443, scheme="https://"):
+    """Build a url from host and port.
+
+    Args:
+        host (:obj:`str`): hostname part of url.
+            can be any of: "scheme://host:port", "scheme://host", or "host".
+        port (:obj:`str`, optional): port to connect to on host.
+            If no :PORT in host, this will be added to host. Defaults to: 443
+        scheme (:obj:`str`, optional):
+            Scheme to add to host if no "://" in host. Defaults to: "https://".
+    """
+    if "://" not in host:
+        url = "{scheme}{host}".format(scheme=scheme, host=host)
+    if not re.search(r":\d+", host):
+        url = "{url}:{port}".format(url=url, port=port)
+    return url
+
+
+def test_cert(host, port=443, timeout=5, **kwargs):
+    """Test that a cert is valid on a site.
+
+    Args:
+        host (:obj:`str`): hostname to connect to.
+            can be any of: "scheme://host:port", "scheme://host", or "host".
+        port (:obj:`str`, optional): port to connect to on host.
+            If no :PORT in host, this will be added to host. Defaults to: 443
+        verify (:obj:`bool`, optional):
+            Enable cert validation in requests. Defaults to: False.
+        timeout (:obj:`str`, optional): Timeout for connect/response. Defaults to: 5.
+        kwargs: passed thru to requests.get()
+
+    Returns:
+        (:obj:`tuple` of (:obj:`bool`, :obj:`Exception`))
+    """
+    kwargs.setdefault("timeout", timeout)
+    kwargs.setdefault("url", build_url(host=host, port=port))
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error")
+        try:
+            requests.get(**kwargs)
+            return (True, None)
+        except requests.exceptions.SSLError as exc:
+            return (False, exc)
+        except requests.packages.urllib3.exceptions.HTTPWarning as exc:
+            return (False, exc)
+    return (False, None)
+
+
+def get_response(host, port=443, verify=False, timeout=5, nowarn=True, **kwargs):
     """Get a requests.Response object with cert attributes.
 
     Examples:
@@ -179,44 +224,37 @@ def get_response(host, port=443, verify=False, timeout=5, scheme="https://", now
         >>> print(response.raw.peer_cert.get_subject().get_components())
 
     Notes:
-        This is to fetch a requests.Response object that has certificate attributes. Workflow:
+        This is to fetch a requests.Response object that has cert attributes.
 
-        * Uses a context manager to disable warnings about SSL certificate validation.
-        * Uses a context manager to patch urllib3 to add SSL certificate attributes to the
-          HTTPSResponse object, which is then accessible via the :obj:`requests.Response`.raw
-          object.
+        * Uses a context manager to disable warnings about SSL cert validation.
+        * Uses a context manager to patch urllib3 to add SSL cert attributes
+          to the HTTPSResponse object, which is then accessible via the
+          :obj:`requests.Response`.raw object.
         * Makes a request to a server using :func:`requests.get`
 
     Args:
-        host (:obj:`str`): hostname to connect to. can be any of: "scheme://host:port",
-            "scheme://host", or "host".
+        host (:obj:`str`): hostname to connect to.
+            can be any of: "scheme://host:port", "scheme://host", or "host".
         port (:obj:`str`, optional): port to connect to on host.
             If no :PORT in host, this will be added to host. Defaults to: 443
-        verify (:obj:`bool`, optional): Enable cert validation in requests. Defaults to: False.
-        timeout (:obj:`str`, optional):
-            Timeout in seconds for host connect/response. Defaults to: 5.
-        scheme (:obj:`str`, optional):
-            Scheme to add to host if no "://" in host. Defaults to: "https://".
-        nowarn (:obj:`bool`, optional): Disable HTTPWarning warnings issued by requests.
+        verify (:obj:`bool`, optional):
+            Enable cert validation in requests. Defaults to: False.
+        timeout (:obj:`str`, optional): Timeout for connect/response. Defaults to: 5.
+        nowarn (:obj:`bool`, optional): Disable warnings. Defaults to: True.
         kwargs: passed thru to requests.get()
 
     Returns:
         (:obj:`requests.Response`)
     """
-    if "://" not in host:
-        url = "https://{host}".format(host=host)
-    if not re.search(r":\d+", host):
-        url = "{url}:{port}".format(url=url, port=port)
-
-    req_kwargs = dict(url=url, timeout=timeout, verify=verify)
-    req_kwargs.update(kwargs)
+    kwargs.setdefault("timeout", timeout)
+    kwargs.setdefault("verify", verify)
+    kwargs.setdefault("url", build_url(host=host, port=port))
 
     with warnings.catch_warnings():
         with urllib3_patch():
             if nowarn:
-                category = requests.packages.urllib3.exceptions.HTTPWarning
-                warnings.simplefilter(action="ignore", category=category)
-            return requests.get(**req_kwargs)
+                warnings.filterwarnings("ignore")
+            return requests.get(**kwargs)
 
 
 @contextmanager
@@ -276,21 +314,21 @@ class CertStore(object):
         >>> print(cert.pem) # print the PEM version.
         >>> print(cert.public_key_str)  # print the public key.
         >>> print(cert.dump_str_key)  # print a bunch of public key info.
-        >>> print(cert.dump_str_info)  # print the same information that str(cert) prints.
+        >>> print(cert.dump_str_info)  # print what str(cert) prints.
         >>> x = cert.dump  # get a dict of ALL attributes.
-        >>> x = cert.dump_json_friendly  # get a dict of only the JSON friendly attributes.
-        >>> print(cert.dump_json)  # print a json str of only the JSON friendly attributes.
+        >>> x = cert.dump_json_friendly  # dict of JSON friendly attrs.
+        >>> print(cert.dump_json)  # JSON str of JSON friendly attrs.
         >>> # and so on
 
     Notes:
 
-        The whole point of this was to be able to provide the same kind of information that is seen
-        when looking at an SSL cert in a browser. This can be used to prompt the user for validity
-        before doing "something". Examples:
+        The whole point of this was to be able to provide the same kind
+        of information that is seen when looking at an SSL cert in a browser.
+        This can be used to prompt for validity before doing "something". For instance:
 
-        * If no cert provided, get the cert and prompt user for validity before continuing
-        * If no cert provided, get cert, prompt for validity, then write to disk for using in
-          further connections.
+        * If no cert provided, get the cert and prompt user for validity before continuing.
+        * If no cert provided, get cert, prompt for validity, then write
+          to disk for using in further connections.
         * ... to print it out and hang it on the wall???
     """
 
@@ -348,8 +386,7 @@ class CertStore(object):
         Args:
             host (:obj:`str`): hostname to connect to.
             port (:obj:`str`, optional): port to connect to on host. Defaults to: 443.
-            timeout (:obj:`str`, optional):
-                Timeout in seconds for host connect/response. Defaults to: 5.
+            timeout (:obj:`str`, optional): Timeout for connect/response. Defaults to: 5.
 
         Returns:
             (:obj:`CertStore`)
@@ -369,11 +406,11 @@ class CertStore(object):
             >>> print(cert)
 
         Notes:
-            This relies on the fact that :func:`enable_urllib3_patch` has been used to add the SSL
-            attributes to :obj:`requests.Response`.raw object.
+            This relies on the fact that :func:`enable_urllib3_patch` has
+            been used to add the SSL attributes to the :obj:`requests.Response`.raw object.
 
         Args:
-            response (:obj:`requests.Response`): response object to get raw.peer_cert from
+            response (:obj:`requests.Response`): response object to get raw.peer_cert from.
 
         Returns:
             (:obj:`CertStore`)
@@ -390,6 +427,32 @@ class CertStore(object):
         Returns:
             (:obj:`CertStore`)
         """
+        return cls(x509=pem_to_x509(pem=pem))
+
+    @classmethod
+    def new_from_pem_disk(cls, pem_file):
+        """Make instance of this cls from a string containing a PEM.
+
+        Args:
+            pem_file (:obj:`str` or :obj:`pathlib.Path`): Path to file containing PEM.
+
+        Raises:
+            (:obj:`CertHumanError`): if pem_file does not exist or is not readable.
+
+        Returns:
+            (:obj:`CertStore`)
+        """
+        pem_file = pathlib.Path(pem_file).expanduser().absolute()
+        if not pem_file.is_file():
+            error = "Certificate at path '{path}' not found"
+            error = error.format(path=format(pem_file))
+            raise CertHumanError(error)
+        try:
+            pem = pem_file.read_text()
+        except Exception as exc:
+            error = "Certificate at path '{path}' not readable, error: {exc}"
+            error = error.format(path=format(pem_file), exc=exc)
+            raise CertHumanError(error)
         return cls(x509=pem_to_x509(pem=pem))
 
     @property
@@ -439,18 +502,19 @@ class CertStore(object):
             >>> cert = cert_human.CertStore.new_from_host_requests("cyborg")
 
             >>> # ideally, do some kind of validation with the user here
-            >>> # i.e. use ``print(cert.dump_str)`` to show the same kind of information
-            >>> # that a browser would show
+            >>> # i.e. use ``print(cert.dump_str)`` to show the same
+            >>> # kind of information that a browser would show
 
             >>> # then write to disk:
             >>> cert_path = cert.to_disk("~/cyborg.pem")
 
-            >>> # use requests with the newly written cert, no SSL warnings or SSL validation
-            >>> # errors happen even though it's self signed:
+            >>> # use requests with the newly written cert
+            >>> # no SSL warnings or SSL validation errors happen
+            >>> # even though it's self signed:
             >>> response = requests.get("https://cyborg", verify=cert_path)
 
         Args:
-            path (:obj:`str` or :obj:`pathlib.Path`): Path to write self.pem to.
+            path (:obj:`str` or :obj:`pathlib.Path`): Path to write self.pem.
 
         Returns:
             (:obj:`pathlib.Path`)
@@ -721,7 +785,7 @@ class CertStore(object):
         Notes:
 
             Parsing the extensions was not easy. I sort of gave up at one point.
-            I finally resorted to using the str() of each extension as OpenSSL returns it.
+            Resorted to using str(extension) as OpenSSL returns it.
 
         Returns:
             (:obj:`dict`)
@@ -841,11 +905,7 @@ class CertStore(object):
         Returns:
             (:obj:`str`)
         """
-        items = [
-            self.dump_str_exts,
-            self.dump_str_key,
-            self.dump_str_info,
-        ]
+        items = [self.dump_str_exts, self.dump_str_key, self.dump_str_info]
         return "\n\n".join(items)
 
     @property
@@ -862,15 +922,19 @@ class CertStore(object):
             tmpl(title="Subject Alternate Names", info=self.subject_alt_names_str),
             tmpl(title="Fingerprint SHA1", info=self.fingerprint_sha1),
             tmpl(title="Fingerprint SHA256", info=self.fingerprint_sha256),
-            ", ".join([
-                tmpl(title="Expired", info=self.is_expired),
-                tmpl(title="Not Valid Before", info=self.not_valid_before_str),
-                tmpl(title="Not Valid After", info=self.not_valid_after_str),
-            ]),
-            ", ".join([
-                tmpl(title="Self Signed", info=self.is_self_signed),
-                tmpl(title="Self Issued", info=self.is_self_issued),
-            ]),
+            ", ".join(
+                [
+                    tmpl(title="Expired", info=self.is_expired),
+                    tmpl(title="Not Valid Before", info=self.not_valid_before_str),
+                    tmpl(title="Not Valid After", info=self.not_valid_after_str),
+                ]
+            ),
+            ", ".join(
+                [
+                    tmpl(title="Self Signed", info=self.is_self_signed),
+                    tmpl(title="Self Issued", info=self.is_self_issued),
+                ]
+            ),
         ]
         return "\n".join(items)
 
@@ -882,9 +946,7 @@ class CertStore(object):
             (:obj:`str`)
         """
         exts = "Extensions:\n{v}".format
-        items = [
-            exts(v=indent(txt=self.extensions_str)),
-        ]
+        items = [exts(v=indent(txt=self.extensions_str))]
         return "\n".join(items)
 
     @property
@@ -929,7 +991,9 @@ class CertStore(object):
         Returns:
             (:obj:`list` of :obj:`list`)
         """
-        exts = [self.x509.get_extension(i) for i in range(self.x509.get_extension_count())]
+        exts = [
+            self.x509.get_extension(i) for i in range(self.x509.get_extension_count())
+        ]
         return [[utf8(obj=e.get_short_name()), e] for e in exts]
 
     @property
@@ -1038,8 +1102,7 @@ class CertChainStore(object):
         Args:
             host (:obj:`str`): hostname to connect to.
             port (:obj:`str`, optional): port to connect to on host. Defaults to: 443.
-            timeout (:obj:`str`, optional):
-                Timeout in seconds for host connect/response. Defaults to: 5.
+            timeout (:obj:`str`, optional): Timeout for connect/response. Defaults to: 5.
 
         Returns:
             (:obj:`CertChainStore`)
@@ -1063,7 +1126,7 @@ class CertChainStore(object):
             attributes to the :obj:`requests.Response`.raw object.
 
         Args:
-            response (:obj:`requests.Response`): response object to get raw.peer_cert_chain from
+            response (:obj:`requests.Response`): response object to get raw.peer_cert_chain from.
 
         Returns:
             (:obj:`CertChainStore`)
@@ -1081,6 +1144,32 @@ class CertChainStore(object):
         Returns:
             (:obj:`CertChainStore`)
         """
+        return cls(x509=pems_to_x509(pem=pem))
+
+    @classmethod
+    def new_from_pem_disk(cls, pem_file):
+        """Make instance of this cls from a string containing PEMs.
+
+        Args:
+            pem_file (:obj:`str` or :obj:`pathlib.Path`): Path to file containing PEMs.
+
+        Raises:
+            (:obj:`CertHumanError`): if pem_file does not exist or is not readable.
+
+        Returns:
+            (:obj:`CertChainStore`)
+        """
+        pem_file = pathlib.Path(pem_file).expanduser().absolute()
+        if not pem_file.is_file():
+            error = "Certificate at path '{path}' not found"
+            error = error.format(path=format(pem_file))
+            raise CertHumanError(error)
+        try:
+            pem = pem_file.read_text()
+        except Exception as exc:
+            error = "Certificate at path '{path}' not readable, error: {exc}"
+            error = error.format(path=format(pem_file), exc=exc)
+            raise CertHumanError(error)
         return cls(x509=pems_to_x509(pem=pem))
 
     @property
@@ -1245,19 +1334,23 @@ def utf8(obj):
         return obj
 
 
-def indent(txt, n=4):
+def indent(txt, n=4, s=" "):
     """Text indenter.
 
     Args:
         txt (:obj:`str`): The text to indent.
-        n (:obj:`str`, optional): Number of spaces to indent txt. Defaults to: 4.
+        n (:obj:`str`, optional): Number of s to indent txt. Defaults to: 4.
+        s (:obj:`str`, optional): Char to use for indent. Defaults to: " ".
 
     Returns:
         (:obj:`str`)
     """
     txt = "{t}".format(t=txt)
     tmpl = "{s}{line}".format
-    return "\n".join([tmpl(s=" " * n, line=l) for l in txt.splitlines()])
+    lines = txt.splitlines()
+    lines = [tmpl(s=s * n, line=l) for l in lines]
+    lines = "\n".join(lines)
+    return lines
 
 
 def clsname(obj):
@@ -1269,7 +1362,7 @@ def clsname(obj):
     Returns:
         (:obj:`str`)
     """
-    if inspect.isclass(obj) or obj.__module__ in set(['builtins', '__builtin__']):
+    if inspect.isclass(obj) or obj.__module__ in set(["builtins", "__builtin__"]):
         return obj.__name__
     return obj.__class__.__name__
 
@@ -1309,10 +1402,8 @@ def space_out(obj, join=" ", every=2, zerofill=True):
 
     Args:
         obj (:obj:`str`): The string to split.
-        join (:obj:`str`, optional):
-            The string to use when rejoining the spaced out values. Defaults to: " ".
-        every (:obj:`str`, optional):
-            The number of characters to split on. Defaults to: 2.
+        join (:obj:`str`, optional): Rejoining str. Defaults to: " ".
+        every (:obj:`str`, optional): The number of characters to split on. Defaults to: 2.
         zerofill (:obj:`bool`, optional): Zero fill the string before splitting if the string
             length is not even. This gets around oddly sized hex strings. Defaults to: True.
 
@@ -1322,7 +1413,8 @@ def space_out(obj, join=" ", every=2, zerofill=True):
     if len(obj) % 2 and zerofill:
         obj = obj.zfill(len(obj) + 1)
     if join is not None:
-        obj = join.join(obj[i:i+every] for i in range(0, len(obj), every))
+        obj = [obj[i : i + every] for i in range(0, len(obj), every)]  # noqa: E203
+        obj = join.join(obj)
     return obj
 
 
@@ -1345,15 +1437,12 @@ def write_file(path, text, overwrite=False, mkparent=True, protect=True):
     Args:
         path (:obj:`str` or :obj:`pathlib.Path`): The path to write text to.
         text (:obj:`str`): The text to write to path.
-        overwrite (:obj:`bool`, optional): If path exists, overwrite it. Defaults to: False.
-        mkparent (:obj:`bool`, optional):
-            If parent directory of path does not exist, create it. Defaults to: True.
-        protect (:obj:`bool`, optional):
-            Set permissions of file to 0600 and parent directory to 0700.
+        overwrite (:obj:`bool`, optional): Overwite file if exists. Defaults to: False.
+        mkparent (:obj:`bool`, optional): Create parent directory if not exist. Defaults to: True.
+        protect (:obj:`bool`, optional): Set file:0600 and parent:0700. Defaults to: True.
 
     Raises:
-        (:obj:`CertHumanError`):
-            path exists and overwrite is false, or parent directory not exist and mkparent is False.
+        (:obj:`CertHumanError`): path exists and not overwrite, parent not exist and not mkparent.
 
     Returns:
         (:obj:`pathlib.Path`)
@@ -1415,8 +1504,7 @@ def pems_to_x509(pem):
     """Convert from PEM with multiple certs to x509.
 
     Args:
-        pem (:obj:`str`): PEM string with multiple certificates to convert
-            to x509 certificate object.
+        pem (:obj:`str`): PEM string with multiple certs to convert to x509 certificate object.
 
     Returns:
         (:obj:`list` of :obj:`OpenSSL.crypto.X509`)
@@ -1475,4 +1563,5 @@ def der_to_asn1(der):
 
 class CertHumanError(Exception):
     """Exception wrapper."""
+
     pass
