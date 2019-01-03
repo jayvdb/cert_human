@@ -3,6 +3,7 @@
 |Open Source? Yes!|
 |made-with-python|
 |code-black|
+|vulnerabilities|
 
 #######################################
 Cert Human: SSL Certificates for Humans
@@ -89,6 +90,9 @@ TODO items
 
 .. |code-black| image:: https://img.shields.io/badge/code%20style-black-000000.svg
    :target: https://github.com/ambv/black
+
+.. |vulnerabilities| image:: https://snyk.io/test/github/lifehackjim/cert_human/badge.svg?targetFile=requirements.txt
+   :target: https://snyk.io/test/github/lifehackjim/cert_human?targetFile=requirements.txt
 
 ###################
 Table of Contents
