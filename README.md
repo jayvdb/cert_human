@@ -1,5 +1,6 @@
 [![Maintenance yes](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/lifehackjim/cert_human/graphs/commit-activity) [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/) [![Open Source? Yes!](https://badgen.net/badge/Open%20Source%20%3F/Yes%21/blue?icon=github)](https://github.com/lifehackjim/cert_human) [![made-with-python](https://img.shields.io/badge/Made%20with-Python-1f425f.svg)](https://www.python.org/)
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
+[![Known Vulnerabilities](https://snyk.io/test/github/lifehackjim/cert_human/badge.svg?targetFile=requirements.txt)](https://snyk.io/test/github/lifehackjim/cert_human?targetFile=requirements.txt)
 
 Cert Human: SSL Certificates for Humans
 =======================================
