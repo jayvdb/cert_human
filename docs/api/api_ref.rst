@@ -40,7 +40,7 @@ WithCert Classes
 
 Exception Classes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. autoclass:: cert_human.CertHumanError
+.. autoexception:: cert_human.CertHumanError
     :members:
     :undoc-members:
     :show-inheritance:

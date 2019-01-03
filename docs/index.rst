@@ -2,6 +2,7 @@
 |MIT license|
 |Open Source? Yes!|
 |made-with-python|
+|code-black|
 
 #######################################
 Cert Human: SSL Certificates for Humans
@@ -19,27 +20,60 @@ I was unable to find any great / easy ways that incorporated all of these concep
 
 Originally this was based off of the lovely over-engineered solution in `get-ca-py <https://github.com/neozenith/get-ca-py>`_ by `Josh Peak <https://github.com/neozenith>`_.
 
-I wound up wanting a more offically supported way of patching urllib3 to have access to the certificate attributes in the raw attribute of a :obj:`requests.Response` object. So I wrote :ref:`Replacement Connect and Response subclasses <withcert_classes>` for :obj:`urllib3.HTTPSConnectionPool`, and a :ref:`patcher, unpatcher, and context manager <withcert_functions>` to enable/disable the new classes.
+I wound up wanting a more offically supported way of patching urllib3 to have access to the certificate attributes in the raw attribute of a :obj:`requests.Response` object. So I wrote :ref:`Replacement Connect and Response subclasses <WithCert Classes>` for :obj:`urllib3.HTTPSConnectionPool`, and a :ref:`patcher, unpatcher, and context manager <WithCert Functions>` to enable/disable the new classes.
 
-I also wanted some generalized utility functions to get the certificates, so I wrote some :ref:`get certificate functions <getcert_functions>`.
+I also wanted some generalized utility functions to get the certificates, so I wrote some :ref:`get certificate functions <Get Cert Functions>`.
 
-I then wanted an easier, more *human* way of accessing all of the information in the certificates. And that wound up turning into a whole thing. So :ref:`CertStore and CertChainStore classes <store_classes>` were born.
+I then wanted an easier, more *human* way of accessing all of the information in the certificates. And that wound up turning into a whole thing. So :ref:`CertStore and CertChainStore classes <Store Classes>` were born.
+
+
+**************************
+Python Versions Supported
+**************************
+
+I only focused on writing and testing for the latest versions of 2.7 and 3.7. It might work on other versions, have fun.
 
 **************************
 Installation
 **************************
 
+Install into your system wide site-packages:
+
 .. code-block:: console
 
     $ pip install cert_human
+
+Or install into your pipenv:
+
+.. code-block:: console
+
+    $ pipenv install cert_human
+
+**************************
+Get the Source Code
+**************************
+
+Cert Human is actively developed on GitHub, where the code is
+`always available <https://github.com/lifehackjim/cert_human>`_.
+
+You can clone the public repository:
+
+.. code-block:: console
+
+    $ git clone git://github.com/lifehackjim/cert_human.git
+
+Once you have a copy of the source, you can embed it in your own Python
+package, or install it into your site-packages easily::
+
+    $ cd requests
+    $ pip install .
+
 
 **************************
 TODO items
 **************************
 
-* I have no test suite setup. I know. That's horrible. But I've already spent too much time on this. I'll get to it eventually.
-* Coverage support
-* Tox support
+* None at this time.
 
 .. |MIT license| image:: https://img.shields.io/badge/License-MIT-blue.svg
    :target: https://lbesson.mit-license.org/
@@ -53,6 +87,9 @@ TODO items
 .. |made-with-python| image:: https://img.shields.io/badge/Made%20with-Python-1f425f.svg
    :target: https://www.python.org/
 
+.. |code-black| image:: https://img.shields.io/badge/code%20style-black-000000.svg
+   :target: https://github.com/ambv/black
+
 ###################
 Table of Contents
 ###################
@@ -61,8 +98,8 @@ Table of Contents
    :maxdepth: 4
    :numbered:
 
-   cli.rst
-   api.rst
+   cli/cli.rst
+   api/api.rst
 
 ###################
 Indices and tables
