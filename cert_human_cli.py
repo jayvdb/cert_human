@@ -11,80 +11,78 @@ import cert_human
 import sys
 
 
-if __name__ == "__main__":
+def cli(argv):
+    fmt = argparse.ArgumentDefaultsHelpFormatter
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=fmt)
+    parser.add_argument(
+        "host",
+        metavar="HOST",
+        action="store",
+        type=str,
+        help="Host to get cert or cert chain from",
+    )
+    parser.add_argument(
+        "--port",
+        default=443,
+        action="store",
+        required=False,
+        type=int,
+        help="Port on host to connect to",
+    )
+    parser.add_argument(
+        "--method",
+        dest="method",
+        action="store",
+        default="requests",
+        required=False,
+        choices=["requests", "socket"],
+        help="Use requests.get a SSL socket to get cert or cert chain.",
+    )
+    parser.add_argument(
+        "--chain",
+        dest="chain",
+        action="store_true",
+        default=False,
+        required=False,
+        help="Print/write the cert chain instead of the cert.",
+    )
+    parser.add_argument(
+        "--print_mode",
+        dest="print_mode",
+        action="store",
+        default="info",
+        required=False,
+        choices=["info", "key", "extensions", "all"],
+        help="When no --write specified, print this type of information for the cert.",
+    )
+    parser.add_argument(
+        "--write",
+        dest="write",
+        action="store",
+        default="",
+        required=False,
+        help="File to write cert/cert chain to",
+    )
+    parser.add_argument(
+        "--overwrite",
+        dest="overwrite",
+        action="store_true",
+        default=False,
+        required=False,
+        help="When writing to --write and file exists, overwrite.",
+    )
+    parser.add_argument(
+        "--verify",
+        dest="verify",
+        action="store",
+        default="",
+        required=False,
+        help="PEM file to verify host, empty will disable verify, for --method requests.",
+    )
+    return parser.parse_args(argv)
 
-    def cli(argv):
-        fmt = argparse.ArgumentDefaultsHelpFormatter
-        parser = argparse.ArgumentParser(description=__doc__, formatter_class=fmt)
-        parser.add_argument(
-            "host",
-            metavar="HOST",
-            action="store",
-            type=str,
-            help="Host to get cert or cert chain from",
-        )
-        parser.add_argument(
-            "--port",
-            default=443,
-            action="store",
-            required=False,
-            type=int,
-            help="Port on host to connect to",
-        )
-        parser.add_argument(
-            "--method",
-            dest="method",
-            action="store",
-            default="requests",
-            required=False,
-            choices=["requests", "socket"],
-            help="Use requests.get a SSL socket to get cert or cert chain.",
-        )
-        parser.add_argument(
-            "--chain",
-            dest="chain",
-            action="store_true",
-            default=False,
-            required=False,
-            help="Print/write the cert chain instead of the cert.",
-        )
-        parser.add_argument(
-            "--print_mode",
-            dest="print_mode",
-            action="store",
-            default="info",
-            required=False,
-            choices=["info", "key", "extensions", "all"],
-            help="When no --write specified, print this type of information for the cert."
-        )
-        parser.add_argument(
-            "--write",
-            dest="write",
-            action="store",
-            default="",
-            required=False,
-            help="File to write cert/cert chain to",
-        )
-        parser.add_argument(
-            "--overwrite",
-            dest="overwrite",
-            action="store_true",
-            default=False,
-            required=False,
-            help="When writing to --write and file exists, overwrite.",
-        )
-        parser.add_argument(
-            "--verify",
-            dest="verify",
-            action="store",
-            default="",
-            required=False,
-            help="PEM file to verify host, empty will disable verify, for --method requests.",
-        )
-        return parser.parse_args(argv)
 
-    cli_args = cli(argv=sys.argv[1:])
-
+def main(cli_args):
     if cli_args.chain:
         store_cls = cert_human.CertChainStore
         store_target = "cert chain"
@@ -96,9 +94,7 @@ if __name__ == "__main__":
         verify = False if not cli_args.verify else cli_args.verify
         try:
             store_obj = store_cls.new_from_host_requests(
-                host=cli_args.host,
-                port=cli_args.port,
-                verify=verify,
+                host=cli_args.host, port=cli_args.port, verify=verify
             )
         except cert_human.requests.exceptions.SSLError as exc:
             exc = "\n  ".join([x.strip() for x in format(exc).split(":")])
@@ -107,8 +103,7 @@ if __name__ == "__main__":
             store_obj = None
     elif cli_args.method == "socket":
         store_obj = store_cls.new_from_host_socket(
-            host=cli_args.host,
-            port=cli_args.port,
+            host=cli_args.host, port=cli_args.port
         )
 
     if store_obj:
@@ -126,3 +121,8 @@ if __name__ == "__main__":
             }
             mode_out = getattr(store_obj, print_map[cli_args.print_mode])
             print(mode_out)
+
+
+if __name__ == "__main__":
+    cli_args = cli(argv=sys.argv[1:])
+    main(cli_args)
