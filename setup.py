@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import os
 import sys
 from shutil import rmtree
@@ -13,20 +8,39 @@ from codecs import open
 
 from setuptools import setup
 from setuptools import Command
+from setuptools.command.test import test as TestCommand
 # from setuptools import find_packages
 
 here = os.path.abspath(os.path.dirname(__file__))
 version_path = os.path.join(here, 'cert_human', '__version__.py')
 
-about = {}
-with open(version_path, 'r', 'utf-8') as f:
-    exec(f.read(), about)
 
-with open('README.md', 'r', 'utf-8') as f:
-    readme = f.read()
+class PyTest(TestCommand):
+
+    # description = 'Run the test suite.'
+    user_options = [('pytest-args=', 'a', "Arguments to pass into py.test")]
+
+    def initialize_options(self):
+        TestCommand.initialize_options(self)
+        try:
+            from multiprocessing import cpu_count
+            self.pytest_args = ['-n', str(cpu_count()), '--boxed']
+        except (ImportError, NotImplementedError):
+            self.pytest_args = ['-n', '1', '--boxed']
+
+    def finalize_options(self):
+        TestCommand.finalize_options(self)
+        self.test_args = []
+        self.test_suite = True
+
+    def run_tests(self):
+        import pytest
+
+        errno = pytest.main(self.pytest_args)
+        sys.exit(errno)
 
 
-class UploadCommand(Command):
+class Upload(Command):
     """Support setup.py upload."""
 
     description = 'Build and publish the package.'
@@ -63,6 +77,13 @@ class UploadCommand(Command):
         sys.exit()
 
 
+about = {}
+with open(version_path, 'r', 'utf-8') as f:
+    exec(f.read(), about)
+
+with open('README.md', 'r', 'utf-8') as f:
+    readme = f.read()
+
 packages = ['cert_human']
 # packages = find_packages()
 
@@ -85,6 +106,16 @@ setup(
         "requests[security]",
         'pathlib2;python_version<"3.0"',
     ],
+    tests_require=[
+        'pytest-httpbin',
+        'pytest-cov',
+        'pytest-mock',
+        'pytest-xdist',
+        'pytest>=2.8.0',
+        'detox',
+        'sphinx',
+        'sphinx_bootstrap_theme',
+    ],
     license=about['__license__'],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
@@ -100,6 +131,7 @@ setup(
         'Programming Language :: Python :: Implementation :: PyPy'
     ],
     cmdclass={
-        'upload': UploadCommand,
+        'upload': Upload,
+        'test': PyTest,
     },
 )

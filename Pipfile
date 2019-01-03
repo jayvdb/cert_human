@@ -1,0 +1,23 @@
+[[source]]
+url = "https://pypi.org/simple/"
+verify_ssl = true
+name = "pypi"
+
+[dev-packages]
+pytest = ">=2.8.0"
+codecov = "*"
+pytest-httpbin = ">=0.0.7"
+pytest-mock = "*"
+pytest-cov = "*"
+pytest-xdist = "*"
+"readme-renderer[md]" = "*"
+sphinx = "*"
+sphinx_bootstrap_theme = "*"
+docutils = "*"
+"flake8" = "*"
+detox = "*"
+black = "*"
+twine = "*"
+
+[packages]
+e1839a8 = {path = ".",editable = true}
