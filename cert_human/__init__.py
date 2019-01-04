@@ -37,9 +37,9 @@ ConnectionCls = HTTPSConnectionPool.ConnectionCls
 ResponseCls = HTTPSConnectionPool.ResponseCls
 
 
-class HTTPSConnectionWithCert(ConnectionCls):
+class HTTPSConnectionWithCertCls(ConnectionCls):
     def connect(self):
-        super(HTTPSConnectionWithCert, self).connect()
+        super(HTTPSConnectionWithCertCls, self).connect()
         self._set_cert_attrs()
 
     def _set_cert_attrs(self):
@@ -56,15 +56,15 @@ class HTTPSConnectionWithCert(ConnectionCls):
         self.peer_cert_dict = self.sock.getpeercert()
 
 
-class HTTPSResponseWithCert(ResponseCls):
+class ResponseWithCertCls(ResponseCls):
     def __init__(self, *args, **kwargs):
-        super(HTTPSResponseWithCert, self).__init__(*args, **kwargs)
+        super(ResponseWithCertCls, self).__init__(*args, **kwargs)
         self._set_cert_attrs()
 
     def _set_cert_attrs(self):
         """Add cert info from a HTTPSConnection object to a HTTPSResponse object.
 
-        This allows accessing the attributes in a HTTPSConnectionWithCert
+        This allows accessing the attributes in a HTTPSConnectionWithCertCls
         from a requests.Response.raw object like so:
 
           - :obj:`requests.Response`.raw.peer_cert
@@ -95,12 +95,12 @@ def enable_urllib3_patch():
 
     Notes:
 
-        Modifies :obj:`urllib3.connectionpool.HTTPSConnectionPool` and
-        :attr:`urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls`
-        :attr:`urllib3.connectionpool.HTTPConnectionPool.ResponseCls` to the WithCert classes.
+        Modifies :obj:`urllib3.connectionpool.HTTPSConnectionPool` attributes
+        :attr:`urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls` and
+        :attr:`urllib3.connectionpool.HTTPSConnectionPool.ResponseCls` to the WithCert classes.
     """
-    HTTPSConnectionPool.ConnectionCls = HTTPSConnectionWithCert
-    HTTPSConnectionPool.ResponseCls = HTTPSResponseWithCert
+    HTTPSConnectionPool.ConnectionCls = HTTPSConnectionWithCertCls
+    HTTPSConnectionPool.ResponseCls = ResponseWithCertCls
 
 
 def disable_urllib3_patch():
@@ -108,9 +108,9 @@ def disable_urllib3_patch():
 
     Notes:
 
-        Modifies :obj:`urllib3.connectionpool.HTTPSConnectionPool`
+        Modifies :obj:`urllib3.connectionpool.HTTPSConnectionPool` attributes
         :attr:`urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls` and
-        :attr:`urllib3.connectionpool.HTTPConnectionPool.ResponseCls` back to their originals.
+        :attr:`urllib3.connectionpool.HTTPSConnectionPool.ResponseCls` back to original classes.
     """
     HTTPSConnectionPool.ConnectionCls = ConnectionCls
     HTTPSConnectionPool.ResponseCls = ResponseCls
@@ -141,8 +141,8 @@ def using_urllib3_patch():
     Returns:
         (:obj:`bool`)
     """
-    connect = HTTPSConnectionPool.ConnectionCls == HTTPSConnectionWithCert
-    response = HTTPSConnectionPool.ResponseCls == HTTPSResponseWithCert
+    connect = HTTPSConnectionPool.ConnectionCls == HTTPSConnectionWithCertCls
+    response = HTTPSConnectionPool.ResponseCls == ResponseWithCertCls
     return all([connect, response])
 
 
@@ -169,14 +169,15 @@ def build_url(host, port=443, scheme="https://"):
         scheme (:obj:`str`, optional):
             Scheme to add to host if no "://" in host. Defaults to: "https://".
     """
-    if "://" not in host:
-        url = "{scheme}{host}".format(scheme=scheme, host=host)
+    url = "{host}".format(host=host)
+    if "://" not in url:
+        url = "{scheme}{url}".format(scheme=scheme, url=url)
     if not re.search(r":\d+", host):
         url = "{url}:{port}".format(url=url, port=port)
     return url
 
 
-def test_cert(host, port=443, timeout=5, **kwargs):
+def test_cert(host, path="", port=443, timeout=5, **kwargs):
     """Test that a cert is valid on a site.
 
     Args:
@@ -185,7 +186,7 @@ def test_cert(host, port=443, timeout=5, **kwargs):
         port (:obj:`str`, optional): port to connect to on host.
             If no :PORT in host, this will be added to host. Defaults to: 443
         verify (:obj:`bool`, optional):
-            Enable cert validation in requests. Defaults to: False.
+            Path to cert file to use for validation. Defaults to: True.
         timeout (:obj:`str`, optional): Timeout for connect/response. Defaults to: 5.
         kwargs: passed thru to requests.get()
 
@@ -194,19 +195,25 @@ def test_cert(host, port=443, timeout=5, **kwargs):
     """
     kwargs.setdefault("timeout", timeout)
     kwargs.setdefault("url", build_url(host=host, port=port))
-    with warnings.catch_warnings():
-        warnings.filterwarnings("error")
-        try:
-            requests.get(**kwargs)
-            return (True, None)
-        except requests.exceptions.SSLError as exc:
-            return (False, exc)
-        except requests.packages.urllib3.exceptions.HTTPWarning as exc:
-            return (False, exc)
+    if path:
+        kwargs.setdefault("verify", path)
+    # TODO(!)
+    # with warnings.catch_warnings():
+    #     warnings.filterwarnings(
+    #         action="error",
+    #         category=urllib3.exceptions.InsecureRequestWarning,
+    #     )
+    try:
+        requests.get(**kwargs)
+        return (True, None)
+    except requests.exceptions.SSLError as exc:
+        return (False, exc)
+    # except urllib3.exceptions.InsecureRequestWarning as exc:
+    #     return (False, exc)
     return (False, None)
 
 
-def get_response(host, port=443, verify=False, timeout=5, nowarn=True, **kwargs):
+def get_response(host, port=443, **kwargs):
     """Get a requests.Response object with cert attributes.
 
     Examples:
@@ -237,23 +244,18 @@ def get_response(host, port=443, verify=False, timeout=5, nowarn=True, **kwargs)
             can be any of: "scheme://host:port", "scheme://host", or "host".
         port (:obj:`str`, optional): port to connect to on host.
             If no :PORT in host, this will be added to host. Defaults to: 443
-        verify (:obj:`bool`, optional):
-            Enable cert validation in requests. Defaults to: False.
-        timeout (:obj:`str`, optional): Timeout for connect/response. Defaults to: 5.
-        nowarn (:obj:`bool`, optional): Disable warnings. Defaults to: True.
         kwargs: passed thru to requests.get()
 
     Returns:
         (:obj:`requests.Response`)
     """
-    kwargs.setdefault("timeout", timeout)
-    kwargs.setdefault("verify", verify)
+    kwargs.setdefault("timeout", 5)
+    kwargs.setdefault("verify", False)
     kwargs.setdefault("url", build_url(host=host, port=port))
 
     with warnings.catch_warnings():
         with urllib3_patch():
-            if nowarn:
-                warnings.filterwarnings("ignore")
+            warnings.filterwarnings("ignore")
             return requests.get(**kwargs)
 
 
@@ -375,7 +377,7 @@ class CertStore(object):
         return cls(x509=x509)
 
     @classmethod
-    def new_from_host_requests(cls, host, port=443, verify=False, timeout=5):
+    def new_from_host_requests(cls, host, port=443):
         """Make instance of this cls using requests module to get the cert.
 
         Examples:
@@ -386,12 +388,11 @@ class CertStore(object):
         Args:
             host (:obj:`str`): hostname to connect to.
             port (:obj:`str`, optional): port to connect to on host. Defaults to: 443.
-            timeout (:obj:`str`, optional): Timeout for connect/response. Defaults to: 5.
 
         Returns:
             (:obj:`CertStore`)
         """
-        response = get_response(host=host, port=port, verify=verify, timeout=timeout)
+        response = get_response(host=host, port=port)
         return cls(x509=response.raw.peer_cert)
 
     @classmethod
@@ -1091,7 +1092,7 @@ class CertChainStore(object):
             return cls(x509=ssl_sock.get_peer_cert_chain())
 
     @classmethod
-    def new_from_host_requests(cls, host, port=443, verify=False, timeout=5):
+    def new_from_host_requests(cls, host, port=443):
         """Make instance of this cls using requests module to get the cert chain.
 
         Examples:
@@ -1107,7 +1108,7 @@ class CertChainStore(object):
         Returns:
             (:obj:`CertChainStore`)
         """
-        response = get_response(host=host, port=port, verify=verify, timeout=timeout)
+        response = get_response(host=host, port=port)
         return cls(x509=response.raw.peer_cert_chain)
 
     @classmethod
@@ -1439,7 +1440,7 @@ def write_file(path, text, overwrite=False, mkparent=True, protect=True):
         text (:obj:`str`): The text to write to path.
         overwrite (:obj:`bool`, optional): Overwite file if exists. Defaults to: False.
         mkparent (:obj:`bool`, optional): Create parent directory if not exist. Defaults to: True.
-        protect (:obj:`bool`, optional): Set file:0600 and parent:0700. Defaults to: True.
+        protect (:obj:`bool`, optional): Set file 0600 and parent 0700. Defaults to: True.
 
     Raises:
         (:obj:`CertHumanError`): path exists and not overwrite, parent not exist and not mkparent.
