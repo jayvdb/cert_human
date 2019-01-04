@@ -20,7 +20,13 @@ test:
 	pipenv run detox
 
 ci:
-	pipenv run py.test -n 8 --boxed --junitxml=junit-report.xml
+	pipenv run py.test -n auto --capture sys --junitxml=junit-report.xml
+
+pytest:
+	pipenv run py.test -n auto --capture sys
+
+pytest_dev:
+	pipenv run py.test -n auto --show-capture=stderr --full-trace --showlocals --capture no
 
 docs:
 	pipenv run make docs_do
