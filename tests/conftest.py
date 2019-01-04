@@ -8,6 +8,8 @@ from __future__ import unicode_literals
 import pytest
 from requests.compat import urljoin
 
+# borrowed judiciously from requests.
+
 
 def prepare_url(value):
     httpbin_url = value.url.rstrip('/') + '/'
@@ -16,6 +18,11 @@ def prepare_url(value):
         return urljoin(httpbin_url, '/'.join(suffix))
 
     return inner
+
+
+@pytest.fixture
+def httpbin(httpbin):
+    return prepare_url(httpbin)
 
 
 @pytest.fixture
