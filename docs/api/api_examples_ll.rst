@@ -81,17 +81,6 @@ You can get an invalid cert (self-signed/self-issued/signed by unknown CA):
     >>> path.is_file()
     True
 
-Invalid certs with warnings
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Make a request to a site that has an invalid cert and don't silence warnings (I don't know why you'd do this, but it's there anyways):
-
-.. code-block:: python
-
-    >>> response = cert_human.get_response(host="cyborg", nowarn=False)
-    /Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/urllib3/connectionpool.py:847: InsecureRequestWarning: Unverified HTTPS request is being made. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings
-      InsecureRequestWarning)
-
 Using cert_human.ssl_socket to get cert and cert chain
 --------------------------------------------------------
 

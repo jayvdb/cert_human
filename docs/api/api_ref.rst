@@ -23,15 +23,14 @@ Store Classes
 
 WithCert Classes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. _withcert_classes:
-.. autoclass:: cert_human.HTTPSConnectionWithCert
+.. autoclass:: cert_human.HTTPSConnectionWithCertCls
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
     :member-order: bysource
 
-.. autoclass:: cert_human.HTTPSResponseWithCert
+.. autoclass:: cert_human.ResponseWithCertCls
     :members:
     :undoc-members:
     :show-inheritance:
@@ -52,13 +51,11 @@ Functions
 
 Get Cert Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. _getcert_functions:
 .. autofunction:: cert_human.get_response
 .. autofunction:: cert_human.ssl_socket
 
 WithCert Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. _withcert_functions:
 .. autofunction:: cert_human.enable_urllib3_patch
 .. autofunction:: cert_human.disable_urllib3_patch
 .. autofunction:: cert_human.urllib3_patch
@@ -85,3 +82,4 @@ Utility Functions
 .. autofunction:: cert_human.wrap_it
 .. autofunction:: cert_human.find_certs
 .. autofunction:: cert_human.write_file
+.. autofunction:: cert_human.test_cert
