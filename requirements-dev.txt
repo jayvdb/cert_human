@@ -1,0 +1,15 @@
+pytest
+codecov
+pytest-httpbin
+pytest-mock
+pytest-cov
+pytest-xdist
+readme-renderer[md]
+sphinx
+sphinx_bootstrap_theme
+docutils
+flake8
+detox
+twine
+httpbin
+black; python_version >= '3.6'
