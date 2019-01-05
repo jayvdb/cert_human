@@ -424,14 +424,14 @@ class TestCertStore(object):
         store = cert_human.CertStore.from_path(example_cert)
         assert store.serial_number.isupper()
         store = cert_human.CertStore.from_path(ec_cert)
-        assert isinstance(store.serial_number, int)
+        assert isinstance(store.serial_number, six.integer_types)
 
     def test_serial_number_str(self, ec_cert, example_cert):
         store = cert_human.CertStore.from_path(example_cert)
         assert " " in store.serial_number_str
         assert store.serial_number_str.isupper()
         store = cert_human.CertStore.from_path(ec_cert)
-        assert isinstance(store.serial_number_str, int)
+        assert isinstance(store.serial_number_str, (six.integer_types))
 
     def test_is_expired(self, example_cert):
         store = cert_human.CertStore.from_path(example_cert)
