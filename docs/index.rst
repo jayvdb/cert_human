@@ -74,7 +74,7 @@ package, or install it into your site-packages easily::
 TODO items
 **************************
 
-* None at this time.
+* Figure out test suite for cli
 
 .. |MIT license| image:: https://img.shields.io/badge/License-MIT-blue.svg
    :target: https://lbesson.mit-license.org/

@@ -6,7 +6,6 @@ Classes
 
 Store Classes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. _store_classes:
 .. autoclass:: cert_human.CertStore
     :members:
     :undoc-members:
@@ -53,6 +52,7 @@ Get Cert Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 .. autofunction:: cert_human.get_response
 .. autofunction:: cert_human.ssl_socket
+.. autofunction:: cert_human.test_cert
 
 WithCert Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -64,22 +64,21 @@ WithCert Functions
 
 Conversion Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. autofunction:: cert_human.asn1_to_der
+.. autofunction:: cert_human.asn1_to_x509
+.. autofunction:: cert_human.der_to_asn1
+.. autofunction:: cert_human.der_to_x509
 .. autofunction:: cert_human.pem_to_x509
 .. autofunction:: cert_human.pems_to_x509
-.. autofunction:: cert_human.x509_to_pem
-.. autofunction:: cert_human.x509_to_der
 .. autofunction:: cert_human.x509_to_asn1
-.. autofunction:: cert_human.der_to_asn1
+.. autofunction:: cert_human.x509_to_der
+.. autofunction:: cert_human.x509_to_pem
 
 Utility Functions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. autofunction:: cert_human.utf8
-.. autofunction:: cert_human.indent
 .. autofunction:: cert_human.clsname
-.. autofunction:: cert_human.jdump
 .. autofunction:: cert_human.hexify
-.. autofunction:: cert_human.space_out
-.. autofunction:: cert_human.wrap_it
-.. autofunction:: cert_human.find_certs
+.. autofunction:: cert_human.indent
 .. autofunction:: cert_human.write_file
-.. autofunction:: cert_human.test_cert
+.. autofunction:: cert_human.read_file
+.. autofunction:: cert_human.find_certs

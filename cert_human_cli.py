@@ -12,6 +12,14 @@ import sys
 
 
 def cli(argv):
+    """Setup argparser and parse argv.
+
+    Args:
+        argv (:obj:`list`): sys.argv or manual list of args to parse.
+
+    Returns:
+        (:obj:`argparse.Namespace`)
+    """
     fmt = argparse.ArgumentDefaultsHelpFormatter
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=fmt)
     parser.add_argument(
@@ -83,6 +91,11 @@ def cli(argv):
 
 
 def main(cli_args):
+    """Process arguments and run the workflows.
+
+    Args:
+        cli_args (:obj:`argparse.Namespace`): Parsed args from sys.argv or list.
+    """
     if cli_args.chain:
         store_cls = cert_human.CertChainStore
         store_target = "cert chain"

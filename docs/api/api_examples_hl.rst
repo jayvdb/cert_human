@@ -11,16 +11,16 @@ Using sockets
 
 .. code-block:: python
 
-    >>> store = cert_human.CertStore.new_from_host_socket(host="cyborg")
-    >>> chain_store = cert_human.CertChainStore.new_from_host_socket(host="cyborg")
+    >>> store = cert_human.CertStore.from_socket(host="cyborg")
+    >>> chain_store = cert_human.CertChainStore.from_socket(host="cyborg")
 
 Using requests
 ^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: python
 
-    >>> store = cert_human.CertStore.new_from_host_requests(host="cyborg")
-    >>> chain_store = cert_human.CertChainStore.new_from_host_requests(host="cyborg")
+    >>> store = cert_human.CertStore.from_request(host="cyborg")
+    >>> chain_store = cert_human.CertChainStore.from_request(host="cyborg")
 
 Using a requests response object
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -29,8 +29,8 @@ Using a requests response object
 
     >>> cert_human.enable_urllib3_patch()
     >>> response = requests.get("https://cyborg")
-    >>> store = cert_human.CertStore.new_from_response_obj(response=response)
-    >>> chain_store = cert_human.CertChainStore.new_from_response_obj(response=response)
+    >>> store = cert_human.CertStore.from_response(response=response)
+    >>> chain_store = cert_human.CertChainStore.from_response(response=response)
 
 Writing PEM certs to disk
 -------------------------------------------------------
@@ -44,6 +44,27 @@ Writing PEM certs to disk
     >>> chain_path = chain_store.to_disk("/tmp/certs/cyborg_chain.pem", overwrite=True)
     >>> chain_path.is_file()
     True
+
+Creating CertStore from various types
+-------------------------------------------------------
+
+.. code-block:: python
+
+    >>> # auto CertStore from a requests.Response object
+    >>> r = cert_human.get_response("cyborg")
+    >>> auto_response = cert_human.CertStore.from_auto(r)
+
+    >>> # auto CertStore from a asn1crypt.X509.Certificate object
+    >>> auto_asn1 = cert_human.CertStore.from_auto(auto_response.asn1)
+
+    >>> # auto CertStore from a PEM string
+    >>> auto_pem = cert_human.CertStore.from_auto(auto_response.pem)
+
+    >>> # auto CertStore from a OpenSSL.crypto.X509 object
+    >>> auto_x509 = cert_human.CertStore.from_auto(auto_response.x509)
+
+    >>> # CertStore from a pem file on disk
+    >>> from_path = cert_human.CertStore.from_path("tests/certs/cert.pem")
 
 CertStore: Attributes
 --------------------------------------------------------
