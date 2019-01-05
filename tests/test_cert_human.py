@@ -323,13 +323,20 @@ class TestCertStore(object):
         store = cert_human.CertStore.from_response(r)
         assert "Subject: Common Name: example.com" in format(store)
 
-    def test_from_auto(self, example_cert):
+    def test_from_response_no_withcert(self, httpbin_secure, httpbin_cert):
+        r = requests.get(httpbin_secure(), verify=False)
+        with pytest.raises(cert_human.CertHumanError):
+            cert_human.CertStore.from_response(r)
+
+    def test_from_auto(self, httpbin_secure, httpbin_cert, example_cert):
+        r = cert_human.get_response(httpbin_secure())
+        auto_response = cert_human.CertStore.from_auto(r)
         store = cert_human.CertStore.from_path(example_cert)
         auto_asn1 = cert_human.CertStore.from_auto(store.asn1)
         auto_pem = cert_human.CertStore.from_auto(store.pem)
         auto_x509 = cert_human.CertStore.from_auto(store.x509)
         auto_der = cert_human.CertStore.from_auto(store.der)
-        for i in [auto_asn1, auto_pem, auto_x509, auto_der]:
+        for i in [auto_asn1, auto_pem, auto_x509, auto_der, auto_response]:
             assert "Subject: Common Name: example.com" in format(i)
 
     def test_from_auto_bad(self):
@@ -555,6 +562,11 @@ class TestChainCertStore(object):
         store = cert_human.CertChainStore.from_response(r)
         assert len(store) == 1
         assert "Subject: Common Name: example.com" in format(store[0])
+
+    def test_from_response_no_withcert(self, httpbin_secure, httpbin_cert):
+        r = requests.get(httpbin_secure(), verify=False)
+        with pytest.raises(cert_human.CertHumanError):
+            cert_human.CertChainStore.from_response(r)
 
     def test_from_pem(self, example_cert, other_cert):
         example_pem = example_cert.read_text()

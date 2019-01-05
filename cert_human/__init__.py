@@ -411,7 +411,13 @@ class CertStore(object):
         Returns:
             (:obj:`CertStore`)
         """
-        return cls(x509=response.raw.peer_cert)
+        attr = "peer_cert"
+        x509 = getattr(response.raw, attr, None)
+        if not x509:
+            error = "Response missing attribute 'raw.{a}', not issued using enable_urllib3_patch"
+            error = error.format(a=attr)
+            raise CertHumanError(error)
+        return cls(x509=x509)
 
     @classmethod
     def from_auto(cls, obj):
@@ -419,7 +425,7 @@ class CertStore(object):
 
         Args:
             obj (:obj:`str` or :obj:`bytes` or :obj:`OpenSSL.crypto.X509` or
-                :obj:`X509.Certificate`): Object to create CertStore from.
+                :obj:`X509.Certificate` or :obj:`requests.Response`): Object to create CertStore.
 
         Returns:
             (:obj:`CertStore`)
@@ -436,6 +442,8 @@ class CertStore(object):
                 return cls(asn1_to_x509(obj))
             elif isinstance(obj, bytes):
                 return cls(der_to_x509(obj))
+            elif isinstance(obj, requests.Response):
+                return cls.from_response(obj)
             else:
                 error = "Invalid type supplied {t}"
                 error = error.format(t=type(obj))
@@ -1148,7 +1156,12 @@ class CertChainStore(object):
         Returns:
             (:obj:`CertChainStore`)
         """
-        x509 = response.raw.peer_cert_chain
+        attr = "peer_cert_chain"
+        x509 = getattr(response.raw, attr, None)
+        if not x509:
+            error = "Response missing attribute 'raw.{a}', not issued using enable_urllib3_patch"
+            error = error.format(a=attr)
+            raise CertHumanError(error)
         return cls(x509=x509)
 
     @classmethod
@@ -1463,67 +1476,6 @@ def find_certs(txt):
     return pattern.findall(txt)
 
 
-def pem_to_x509(pem):
-    """Convert from PEM str to OpenSSL x509.
-
-    Args:
-        pem (:obj:`str`): PEM string to convert to x509 certificate object.
-
-    Returns:
-        (:obj:`OpenSSL.crypto.X509`)
-    """
-    return OpenSSL.crypto.load_certificate(PEM_TYPE, pem)
-
-
-def pems_to_x509(pem):
-    """Convert from PEM str with multiple certs to list of OpenSSL x509s.
-
-    Args:
-        pem (:obj:`str`): PEM string with multiple certs to convert to x509 certificate object.
-
-    Returns:
-        (:obj:`list` of :obj:`OpenSSL.crypto.X509`)
-    """
-    return [pem_to_x509(p) for p in find_certs(txt=pem)]
-
-
-def x509_to_pem(x509):
-    """Convert from OpenSSL x509 to PEM str.
-
-    Args:
-        x509 (:obj:`OpenSSL.crypto.X509`): x509 certificate object to convert to PEM.
-
-    Returns:
-        (:obj:`str`)
-    """
-    pem = OpenSSL.crypto.dump_certificate(PEM_TYPE, x509)
-    return six.ensure_text(pem)
-
-
-def x509_to_der(x509):
-    """Convert from OpenSSL x509 to DER bytes.
-
-    Args:
-        x509 (:obj:`OpenSSL.crypto.X509`): x509 certificate object to convert to DER.
-
-    Returns:
-        (:obj:`bytes`)
-    """
-    return OpenSSL.crypto.dump_certificate(ASN1_TYPE, x509)
-
-
-def x509_to_asn1(x509):
-    """Convert from OpenSSL x509 to asn1crypto x509.
-
-    Args:
-        x509 (:obj:`OpenSSL.crypto.X509`): x509 object to convert to :obj:`x509.Certificate`.
-
-    Returns:
-        (:obj:`x509.Certificate`)
-    """
-    return der_to_asn1(x509_to_der(x509))
-
-
 def asn1_to_der(asn1):
     """Convert from asn1crypto x509 to DER bytes.
 
@@ -1570,6 +1522,69 @@ def der_to_x509(der):
         (:obj:`OpenSSL.crypto.X509`)
     """
     return OpenSSL.crypto.load_certificate(ASN1_TYPE, der)
+
+
+def pem_to_x509(pem):
+    """Convert from PEM str to OpenSSL x509.
+
+    Args:
+        pem (:obj:`str`): PEM string to convert to x509 certificate object.
+
+    Returns:
+        (:obj:`OpenSSL.crypto.X509`)
+    """
+    return OpenSSL.crypto.load_certificate(PEM_TYPE, pem)
+
+
+def pems_to_x509(pem):
+    """Convert from PEM str with multiple certs to list of OpenSSL x509s.
+
+    Args:
+        pem (:obj:`str`): PEM string with multiple certs to convert to x509 certificate object.
+
+    Returns:
+        (:obj:`list` of :obj:`OpenSSL.crypto.X509`)
+    """
+    return [pem_to_x509(p) for p in find_certs(txt=pem)]
+
+
+def x509_to_asn1(x509):
+    """Convert from OpenSSL x509 to asn1crypto x509.
+
+    Args:
+        x509 (:obj:`OpenSSL.crypto.X509`): x509 object to convert to :obj:`x509.Certificate`.
+
+    Returns:
+        (:obj:`x509.Certificate`)
+    """
+    return der_to_asn1(x509_to_der(x509))
+
+def x509_to_der(x509):
+    """Convert from OpenSSL x509 to DER bytes.
+
+    Args:
+        x509 (:obj:`OpenSSL.crypto.X509`): x509 certificate object to convert to DER.
+
+    Returns:
+        (:obj:`bytes`)
+    """
+    return OpenSSL.crypto.dump_certificate(ASN1_TYPE, x509)
+
+
+def x509_to_pem(x509):
+    """Convert from OpenSSL x509 to PEM str.
+
+    Args:
+        x509 (:obj:`OpenSSL.crypto.X509`): x509 certificate object to convert to PEM.
+
+    Returns:
+        (:obj:`str`)
+    """
+    pem = OpenSSL.crypto.dump_certificate(PEM_TYPE, x509)
+    return six.ensure_text(pem)
+
+
+
 
 
 class CertHumanError(Exception):
