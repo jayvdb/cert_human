@@ -3,6 +3,9 @@ init:
 	pip install pipenv --upgrade
 	pipenv install --dev --skip-lock
 
+pipenv_clean:
+	pipenv --rm
+
 flake8:
 	pipenv run flake8 --max-line-length 100 --max-complexity=10 cert_human
 
@@ -13,20 +16,21 @@ black_do:
 	pipenv run black cert_human
 
 coverage:
-	pipenv run py.test --cov-config .coveragerc --verbose --cov-report term --cov-report xml --cov=cert_human tests
+	pipenv run py.test --cov-config .coveragerc --verbose --cov-report term --cov-report xml --cov-report html:cov_html --cov=cert_human tests
 
-test:
-	# This runs all of the tests, on both Python 2 and Python 3.
+detox:
+	# This runs all of the tests for both Python 2 and Python 3.
 	pipenv run detox
 
 ci:
 	pipenv run py.test -n auto --capture sys --junitxml=junit-report.xml
 
-pytest:
+test:
 	pipenv run py.test -n auto --capture sys
 
-pytest_dev:
-	pipenv run py.test -n auto --show-capture=stderr --full-trace --showlocals --capture no
+test_dev:
+	# useful while writing tests
+	pipenv run py.test --show-capture=stderr --full-trace --showlocals --capture no
 
 docs:
 	pipenv run make docs_do
