@@ -11,26 +11,26 @@ import json
 import inspect
 import requests
 import re
-import textwrap
 import six
 import socket
 import warnings
 
+from textwrap import wrap
 from contextlib import contextmanager
-from requests.packages.urllib3.contrib import pyopenssl
 from requests.packages import urllib3
+from requests.packages.urllib3.contrib.pyopenssl import OpenSSL
+
+if six.PY2:
+    import pathlib2 as pathlib  # pragma: no cover
+else:
+    import pathlib
 
 from .__version__ import __title__, __description__, __url__, __version__  # noqa
 from .__version__ import __author__, __author_email__, __license__  # noqa
 from .__version__ import __copyright__, __project__  # noqa
 
-try:
-    import pathlib
-except Exception:
-    import pathlib2 as pathlib
-
-PEM_TYPE = pyopenssl.OpenSSL.crypto.FILETYPE_PEM
-ASN1_TYPE = pyopenssl.OpenSSL.crypto.FILETYPE_ASN1
+PEM_TYPE = OpenSSL.crypto.FILETYPE_PEM
+ASN1_TYPE = OpenSSL.crypto.FILETYPE_ASN1
 
 HTTPSConnectionPool = urllib3.connectionpool.HTTPSConnectionPool
 ConnectionCls = HTTPSConnectionPool.ConnectionCls
@@ -197,20 +197,11 @@ def test_cert(host, path="", port=443, timeout=5, **kwargs):
     kwargs.setdefault("url", build_url(host=host, port=port))
     if path:
         kwargs.setdefault("verify", path)
-    # TODO(!)
-    # with warnings.catch_warnings():
-    #     warnings.filterwarnings(
-    #         action="error",
-    #         category=urllib3.exceptions.InsecureRequestWarning,
-    #     )
     try:
         requests.get(**kwargs)
         return (True, None)
     except requests.exceptions.SSLError as exc:
         return (False, exc)
-    # except urllib3.exceptions.InsecureRequestWarning as exc:
-    #     return (False, exc)
-    return (False, None)
 
 
 def get_response(host, port=443, **kwargs):
@@ -256,7 +247,8 @@ def get_response(host, port=443, **kwargs):
     with warnings.catch_warnings():
         with urllib3_patch():
             warnings.filterwarnings("ignore")
-            return requests.get(**kwargs)
+            response = requests.get(**kwargs)
+    return response
 
 
 @contextmanager
@@ -282,15 +274,15 @@ def ssl_socket(host, port=443, sslv2=False, *args, **kwargs):
     Yields:
         (:obj:`OpenSSL.SSL.Connection`)
     """
-    method = pyopenssl.OpenSSL.SSL.TLSv1_METHOD  # Use TLS Method
-    ssl_context = pyopenssl.OpenSSL.SSL.Context(method)
+    method = OpenSSL.SSL.TLSv1_METHOD  # Use TLS Method
+    ssl_context = OpenSSL.SSL.Context(method)
 
     if not sslv2:
-        options = pyopenssl.OpenSSL.SSL.OP_NO_SSLv2  # Don't accept SSLv2
+        options = OpenSSL.SSL.OP_NO_SSLv2  # Don't accept SSLv2
         ssl_context.set_options(options)
 
     sock = socket.socket(*args, **kwargs)
-    ssl_sock = pyopenssl.OpenSSL.SSL.Connection(ssl_context, sock)
+    ssl_sock = OpenSSL.SSL.Connection(ssl_context, sock)
     ssl_sock.connect((host, port))
 
     try:
@@ -348,7 +340,10 @@ class CertStore(object):
     def __str__(self):
         """Show dump_str_info."""
         ret = "{cls}:\n{info}"
-        ret = ret.format(cls=clsname(obj=self), info=indent(txt=self.dump_str_info))
+        ret = ret.format(
+            cls=clsname(obj=self),
+            info=indent(self.dump_str_info),
+        )
         return ret
 
     def __repr__(self):
@@ -356,12 +351,12 @@ class CertStore(object):
         return self.__str__()
 
     @classmethod
-    def new_from_host_socket(cls, host, port=443, sslv2=False):
+    def from_socket(cls, host, port=443, sslv2=False):
         """Make instance of this cls using socket module to get the cert.
 
         Examples:
 
-            >>> cert = cert_human.CertStore.new_from_host_socket("cyborg")
+            >>> cert = cert_human.CertStore.from_socket("cyborg")
             >>> print(cert)
 
         Args:
@@ -377,12 +372,12 @@ class CertStore(object):
         return cls(x509=x509)
 
     @classmethod
-    def new_from_host_requests(cls, host, port=443):
+    def from_request(cls, host, port=443):
         """Make instance of this cls using requests module to get the cert.
 
         Examples:
 
-            >>> cert = cert_human.CertStore.new_from_host_requests("cyborg")
+            >>> cert = cert_human.CertStore.from_request("cyborg")
             >>> print(cert)
 
         Args:
@@ -396,14 +391,14 @@ class CertStore(object):
         return cls(x509=response.raw.peer_cert)
 
     @classmethod
-    def new_from_response_obj(cls, response):
+    def from_response(cls, response):
         """Make instance of this cls using a requests.Response object.
 
         Examples:
 
             >>> cert.enable_urllib3_patch()
             >>> response = requests.get("https://cyborg", verify=False)
-            >>> cert = cert_human.CertStore.new_from_response_obj(response)
+            >>> cert = cert_human.CertStore.from_response(response)
             >>> print(cert)
 
         Notes:
@@ -419,42 +414,48 @@ class CertStore(object):
         return cls(x509=response.raw.peer_cert)
 
     @classmethod
-    def new_from_pem_str(cls, pem):
-        """Make instance of this cls from a string containing a PEM.
+    def from_auto(cls, obj):
+        """Make instance of this cls from a number of types.
 
         Args:
-            pem (:obj:`str`): PEM string to convert to x509.
+            obj (:obj:`str` or :obj:`bytes` or :obj:`OpenSSL.crypto.X509` or
+                :obj:`X509.Certificate`): Object to create CertStore from.
 
         Returns:
             (:obj:`CertStore`)
         """
-        return cls(x509=pem_to_x509(pem=pem))
+        try:
+            if isinstance(obj, six.string_types):
+                try:
+                    return cls(x509=pem_to_x509(obj))
+                except Exception:  # py2 hackage
+                    return cls(der_to_x509(obj))
+            elif isinstance(obj, OpenSSL.crypto.X509):
+                return cls(obj)
+            elif isinstance(obj, asn1crypto.x509.Certificate):
+                return cls(asn1_to_x509(obj))
+            elif isinstance(obj, bytes):
+                return cls(der_to_x509(obj))
+            else:
+                error = "Invalid type supplied {t}"
+                error = error.format(t=type(obj))
+                raise CertHumanError(error)
+        except Exception as exc:
+            error = "Error converting object type {t}: {exc}"
+            error = error.format(t=type(obj), exc=exc)
+            raise CertHumanError(error)
 
     @classmethod
-    def new_from_pem_disk(cls, pem_file):
-        """Make instance of this cls from a string containing a PEM.
+    def from_path(cls, path):
+        """Make instance of this cls from a file containing a PEM.
 
         Args:
-            pem_file (:obj:`str` or :obj:`pathlib.Path`): Path to file containing PEM.
-
-        Raises:
-            (:obj:`CertHumanError`): if pem_file does not exist or is not readable.
+            path (:obj:`str` or :obj:`pathlib.Path`): Path to file containing PEM.
 
         Returns:
             (:obj:`CertStore`)
         """
-        pem_file = pathlib.Path(pem_file).expanduser().absolute()
-        if not pem_file.is_file():
-            error = "Certificate at path '{path}' not found"
-            error = error.format(path=format(pem_file))
-            raise CertHumanError(error)
-        try:
-            pem = pem_file.read_text()
-        except Exception as exc:
-            error = "Certificate at path '{path}' not readable, error: {exc}"
-            error = error.format(path=format(pem_file), exc=exc)
-            raise CertHumanError(error)
-        return cls(x509=pem_to_x509(pem=pem))
+        return cls(x509=pem_to_x509(read_file(path)))
 
     @property
     def pem(self):
@@ -492,22 +493,22 @@ class CertStore(object):
         """
         return self._asn1
 
-    def to_disk(self, path, overwrite=False, mkparent=True, protect=True):
+    def to_path(self, path, overwrite=False, mkparent=True, protect=True):
         """Write self.pem to disk.
 
         Examples:
 
             >>> # get a cert using sockets:
-            >>> cert = cert_human.CertStore.new_from_host_socket("cyborg")
+            >>> cert = cert_human.CertStore.from_socket("cyborg")
             >>> # or, get a cert using requests:
-            >>> cert = cert_human.CertStore.new_from_host_requests("cyborg")
+            >>> cert = cert_human.CertStore.from_request("cyborg")
 
             >>> # ideally, do some kind of validation with the user here
             >>> # i.e. use ``print(cert.dump_str)`` to show the same
             >>> # kind of information that a browser would show
 
             >>> # then write to disk:
-            >>> cert_path = cert.to_disk("~/cyborg.pem")
+            >>> cert_path = cert.to_path("~/cyborg.pem")
 
             >>> # use requests with the newly written cert
             >>> # no SSL warnings or SSL validation errors happen
@@ -607,11 +608,19 @@ class CertStore(object):
     def public_key(self):
         """Public key in hex format.
 
+        Notes:
+
+            EC certs don't have a modulus, and thus public_key in asn1 obj is not a dict,
+            just the cert itself.
+
         Returns:
             (:obj:`str`)
         """
         pkn = self._public_key_native["public_key"]
-        return hexify(pkn["modulus"] if isinstance(pkn, dict) else pkn)
+        if self._is_ec:
+            return hexify(pkn)
+        else:
+            return hexify(pkn["modulus"])
 
     @property
     def public_key_str(self):
@@ -620,7 +629,11 @@ class CertStore(object):
         Returns:
             (:obj:`str`)
         """
-        return wrap_it(obj=space_out(obj=self.public_key, join=" "), width=60)
+        pkn = self._public_key_native["public_key"]
+        if self._is_ec:
+            return "\n".join(wrap(hexify(pkn, space=True)))
+        else:
+            return "\n".join(wrap(hexify(pkn["modulus"], space=True)))
 
     @property
     def public_key_parameters(self):
@@ -657,7 +670,10 @@ class CertStore(object):
             (:obj:`int`)
         """
         pkn = self._public_key_native["public_key"]
-        return pkn["public_exponent"] if isinstance(pkn, dict) else None
+        if self._is_ec:
+            return None
+        else:
+            return pkn["public_exponent"]
 
     @property
     def signature(self):
@@ -675,7 +691,7 @@ class CertStore(object):
         Returns:
             (:obj:`str`)
         """
-        return wrap_it(obj=space_out(obj=self.signature, join=" "), width=60)
+        return "\n".join(wrap(hexify(self.asn1.signature, space=True)))
 
     @property
     def signature_algorithm(self):
@@ -702,8 +718,9 @@ class CertStore(object):
         Returns:
             (:obj:`str` or :obj:`int`): int if algorithm is 'ec', or hex str.
         """
-        ret = self._cert_native["serial_number"]
-        return hexify(obj=ret) if not self._is_ec else ret
+        if self._is_ec:
+            return self._cert_native["serial_number"]
+        return hexify(self._cert_native["serial_number"])
 
     @property
     def serial_number_str(self):
@@ -713,8 +730,8 @@ class CertStore(object):
             (:obj:`str` or :obj:`int`): int if algorithm is 'ec', or spaced and wrapped hex str.
         """
         if self._is_ec:
-            return self.serial_number
-        return wrap_it(obj=space_out(obj=self.serial_number, join=" "), width=60)
+            return self._cert_native["serial_number"]
+        return "\n".join(wrap(hexify(self._cert_native["serial_number"], space=True)))
 
     @property
     def is_expired(self):
@@ -897,7 +914,7 @@ class CertStore(object):
         Returns:
             (:obj:`str`)
         """
-        return jdump(obj=self.dump_json_friendly)
+        return json.dumps(self.dump_json_friendly, indent=2)
 
     @property
     def dump_str(self):
@@ -946,9 +963,9 @@ class CertStore(object):
         Returns:
             (:obj:`str`)
         """
-        exts = "Extensions:\n{v}".format
-        items = [exts(v=indent(txt=self.extensions_str))]
-        return "\n".join(items)
+        exts = indent(self.extensions_str)
+        items = "Extensions:\n{v}".format(v=exts)
+        return items
 
     @property
     def dump_str_key(self):
@@ -966,12 +983,12 @@ class CertStore(object):
                 a=self.public_key_algorithm,
                 s=self.public_key_size,
                 e=self.public_key_exponent,
-                v=indent(txt=self.public_key_str),
+                v=indent(self.public_key_str),
             ),
             "",
-            sig(a=self.signature_algorithm, v=indent(txt=self.signature_str)),
+            sig(a=self.signature_algorithm, v=indent(self.signature_str)),
             "",
-            sn(v=indent(txt=self.serial_number_str)),
+            sn(v=indent(self.serial_number_str)),
         ]
         return "\n".join(items)
 
@@ -995,7 +1012,7 @@ class CertStore(object):
         exts = [
             self.x509.get_extension(i) for i in range(self.x509.get_extension_count())
         ]
-        return [[utf8(obj=e.get_short_name()), e] for e in exts]
+        return [[six.ensure_text(s=e.get_short_name()), e] for e in exts]
 
     @property
     def _public_key_native(self):
@@ -1031,13 +1048,14 @@ class CertChainStore(object):
     This is really just a list container for a cert chain, which is just a list of x509 certs.
     """
 
-    def __init__(self, x509):
+    def __init__(self, x509=None):
         """Constructor.
 
         Args:
-            x509 (:obj:`list` of :obj:`x509.Certificate`): List of SSL certs in x509 format.
+            x509 (:obj:`list` of :obj:`x509.Certificate`, optional):
+                List of SSL certs in x509 format. Defaults to: [].
         """
-        self._x509 = x509
+        self._x509 = x509 or []
         self._certs = [CertStore(x509=c) for c in x509]
 
     def __str__(self):
@@ -1062,22 +1080,20 @@ class CertChainStore(object):
         """Passthru to self._certs.append() with automatic conversion for PEM or X509.
 
         Args:
-            value (:obj:`str` or :obj:`x509.Certificate` or :obj:`CertStore`)
+            value (:obj:`str` or :obj:`OpenSSL.crypto.X509` or :obj:`CertStore`)
         """
-        if isinstance(value, six.string_types):
-            self._certs.append(CertStore.new_from_pem(pem=value))
-        elif isinstance(value, asn1crypto.x509.Certificate):
-            self._certs.append(CertStore(x509=value))
-        elif isinstance(value, CertStore):
+        if isinstance(value, CertStore):
             self._certs.append(value)
+        else:
+            self._certs.append(CertStore.from_auto(value))
 
     @classmethod
-    def new_from_host_socket(cls, host, port=443, sslv2=False):
+    def from_socket(cls, host, port=443, sslv2=False):
         """Make instance of this cls using socket module to get the cert chain.
 
         Examples:
 
-            >>> cert_chain = cert_human.CertChainStore.new_from_host_socket("cyborg")
+            >>> cert_chain = cert_human.CertChainStore.from_socket("cyborg")
             >>> print(cert_chain)
 
         Args:
@@ -1092,12 +1108,12 @@ class CertChainStore(object):
             return cls(x509=ssl_sock.get_peer_cert_chain())
 
     @classmethod
-    def new_from_host_requests(cls, host, port=443):
+    def from_request(cls, host, port=443):
         """Make instance of this cls using requests module to get the cert chain.
 
         Examples:
 
-            >>> cert_chain = cert_human.CertChainStore.new_from_host_requests("cyborg")
+            >>> cert_chain = cert_human.CertChainStore.from_request("cyborg")
             >>> print(cert_chain)
 
         Args:
@@ -1112,14 +1128,14 @@ class CertChainStore(object):
         return cls(x509=response.raw.peer_cert_chain)
 
     @classmethod
-    def new_from_response_obj(cls, response):
+    def from_response(cls, response):
         """Make instance of this cls using a requests.Response.raw object.
 
         Examples:
 
             >>> cert.enable_urllib3_patch()
             >>> response = requests.get("https://cyborg", verify=False)
-            >>> cert_chain = cert_human.CertChainStore.new_from_response_obj(response)
+            >>> cert_chain = cert_human.CertChainStore.from_response(response)
             >>> print(cert_chain)
 
         Notes:
@@ -1136,7 +1152,7 @@ class CertChainStore(object):
         return cls(x509=x509)
 
     @classmethod
-    def new_from_pem_str(cls, pem):
+    def from_pem(cls, pem):
         """Make instance of this cls from a string containing multiple PEM certs.
 
         Args:
@@ -1145,33 +1161,19 @@ class CertChainStore(object):
         Returns:
             (:obj:`CertChainStore`)
         """
-        return cls(x509=pems_to_x509(pem=pem))
+        return cls(x509=pems_to_x509(pem))
 
     @classmethod
-    def new_from_pem_disk(cls, pem_file):
-        """Make instance of this cls from a string containing PEMs.
+    def from_path(cls, path):
+        """Make instance of this cls from a file containing PEMs.
 
         Args:
-            pem_file (:obj:`str` or :obj:`pathlib.Path`): Path to file containing PEMs.
-
-        Raises:
-            (:obj:`CertHumanError`): if pem_file does not exist or is not readable.
+            path (:obj:`str` or :obj:`pathlib.Path`): Path to file containing PEMs.
 
         Returns:
             (:obj:`CertChainStore`)
         """
-        pem_file = pathlib.Path(pem_file).expanduser().absolute()
-        if not pem_file.is_file():
-            error = "Certificate at path '{path}' not found"
-            error = error.format(path=format(pem_file))
-            raise CertHumanError(error)
-        try:
-            pem = pem_file.read_text()
-        except Exception as exc:
-            error = "Certificate at path '{path}' not readable, error: {exc}"
-            error = error.format(path=format(pem_file), exc=exc)
-            raise CertHumanError(error)
-        return cls(x509=pems_to_x509(pem=pem))
+        return cls(x509=pems_to_x509(read_file(path)))
 
     @property
     def certs(self):
@@ -1189,16 +1191,16 @@ class CertChainStore(object):
 
     @property
     def x509(self):
-        """Return the original x509 cert chain.
+        """Return the X509 version of the each CertStore in self.
 
         Returns:
             (:obj:`list` of :obj:`x509.Certificate`)
         """
-        return self._x509
+        return [c.x509 for c in self]
 
     @property
     def der(self):
-        """Return the DER bytes version of the original x509 cert object.
+        """Return the DER bytes version of the each CertStore in self.
 
         Returns:
             (:obj:`list` of :obj:`bytes`)
@@ -1207,14 +1209,14 @@ class CertChainStore(object):
 
     @property
     def asn1(self):
-        """Return the ASN1 version of the original x509 cert object.
+        """Return the asn1crypto X509 version of the each CertStore in self.
 
         Returns:
             (:obj:`list` of :obj:`x509.Certificate`)
         """
         return [c.asn1 for c in self]
 
-    def to_disk(self, path, overwrite=False, mkparent=True, protect=True):
+    def to_path(self, path, overwrite=False, mkparent=True, protect=True):
         """Write self.pem to disk.
 
         Args:
@@ -1247,7 +1249,7 @@ class CertChainStore(object):
         Returns:
             (:obj:`str`)
         """
-        return jdump(self.dump_json_friendly)
+        return json.dumps(self.dump_json_friendly, indent=2)
 
     @property
     def dump(self):
@@ -1267,7 +1269,7 @@ class CertChainStore(object):
         """
         tmpl = "{c} #{i}\n{s}".format
         items = [
-            tmpl(c=clsname(obj=c), i=i + 1, s=indent(txt=c.dump_str))
+            tmpl(c=clsname(obj=c), i=i + 1, s=indent(c.dump_str))
             for i, c in enumerate(self._certs)
         ]
         return "\n  " + "\n  ".join(items)
@@ -1285,7 +1287,7 @@ class CertChainStore(object):
                 di="-" * i + "/" if i else "",
                 c=clsname(obj=c),
                 i=i + 1,
-                s=indent(txt=c.dump_str_info),
+                s=indent(c.dump_str_info),
             )
             for i, c in enumerate(self._certs)
         ]
@@ -1300,7 +1302,7 @@ class CertChainStore(object):
         """
         tmpl = "{c} #{i}\n{s}".format
         items = [
-            tmpl(c=clsname(obj=c), i=i + 1, s=indent(txt=c.dump_str_key))
+            tmpl(c=clsname(obj=c), i=i + 1, s=indent(c.dump_str_key))
             for i, c in enumerate(self._certs)
         ]
         return "\n  " + "\n  ".join(items)
@@ -1314,25 +1316,52 @@ class CertChainStore(object):
         """
         tmpl = "{c} #{i}\n{s}".format
         items = [
-            tmpl(c=clsname(obj=c), i=i + 1, s=indent(txt=c.dump_str_exts))
+            tmpl(c=clsname(obj=c), i=i + 1, s=indent(c.dump_str_exts))
             for i, c in enumerate(self._certs)
         ]
         return "\n  " + "\n  ".join(items)
 
 
-def utf8(obj):
-    """Decode wrapper.
+def clsname(obj):
+    """Get objects class name.
 
     Args:
-        obj (:obj:`str`): The text to decode to utf-8.
+        obj (:obj:`object`): The object or class to get the name of.
 
     Returns:
         (:obj:`str`)
     """
-    try:
-        return obj.decode("utf-8")
-    except Exception:
-        return obj
+    if inspect.isclass(obj) or obj.__module__ in set(["builtins", "__builtin__"]):
+        return obj.__name__
+    return obj.__class__.__name__
+
+
+def hexify(obj, space=False, join=" ", every=2, zerofill=True):
+    """Convert bytes, int, or str to hex and optionally space it out.
+
+    Args:
+        obj (:obj:`str` or :obj:`int` or :obj:`bytes`): The object to convert into hex.
+        zerofill (:obj:`bool`, optional): Zero fill the string if len is not even.
+            This gets around oddly sized hex strings. Defaults to: True.
+        space (:obj:`bool`, optional): Space the output string using join. Defaults to: False.
+        join (:obj:`str`, optional): Rejoining str. Defaults to: " ".
+        every (:obj:`str`, optional): The number of characters to split on. Defaults to: 2.
+
+    Returns:
+        (:obj:`str`)
+    """
+    if isinstance(obj, six.string_types) or isinstance(obj, six.binary_type):
+        obj = binascii.hexlify(obj)
+    elif isinstance(obj, six.integer_types):
+        obj = format(obj, "X")
+    obj = six.ensure_text(obj).upper()
+    if len(obj) % 2 and zerofill:
+        obj = obj.zfill(len(obj) + 1)
+    if space:
+        if join is not None:
+            obj = [obj[i : i + every] for i in range(0, len(obj), every)]  # noqa: E203
+            obj = join.join(obj)
+    return obj
 
 
 def indent(txt, n=4, s=" "):
@@ -1352,84 +1381,6 @@ def indent(txt, n=4, s=" "):
     lines = [tmpl(s=s * n, line=l) for l in lines]
     lines = "\n".join(lines)
     return lines
-
-
-def clsname(obj):
-    """Get objects class name.
-
-    Args:
-        obj (:obj:`object`): The object or class to get the name of.
-
-    Returns:
-        (:obj:`str`)
-    """
-    if inspect.isclass(obj) or obj.__module__ in set(["builtins", "__builtin__"]):
-        return obj.__name__
-    return obj.__class__.__name__
-
-
-def jdump(obj, indent=2):
-    """Dump obj to JSON str.
-
-    Args:
-        obj (:obj:`dict` or :obj:`list`): The object to dump to JSON.
-        indent (:obj:`str`, optional): Indent to use in JSON output. Defaults to: 2.
-
-    Returns:
-        (:obj:`str`)
-    """
-    return json.dumps(obj, indent=indent)
-
-
-def hexify(obj):
-    """Convert bytes, int, or str to hex.
-
-    Args:
-        obj (:obj:`str` or :obj:`int` or :obj:`bytes`): The object to convert into hex.
-
-    Returns:
-        (:obj:`str`)
-    """
-    if isinstance(obj, six.string_types) or isinstance(obj, six.binary_type):
-        ret = binascii.hexlify(obj)
-    elif isinstance(obj, six.integer_types):
-        ret = format(obj, "X")
-    ret = (utf8(obj=ret) if isinstance(ret, six.binary_type) else ret).upper()
-    return ret
-
-
-def space_out(obj, join=" ", every=2, zerofill=True):
-    """Split obj out every n and re-join using join.
-
-    Args:
-        obj (:obj:`str`): The string to split.
-        join (:obj:`str`, optional): Rejoining str. Defaults to: " ".
-        every (:obj:`str`, optional): The number of characters to split on. Defaults to: 2.
-        zerofill (:obj:`bool`, optional): Zero fill the string before splitting if the string
-            length is not even. This gets around oddly sized hex strings. Defaults to: True.
-
-    Returns:
-        (:obj:`str`)
-    """
-    if len(obj) % 2 and zerofill:
-        obj = obj.zfill(len(obj) + 1)
-    if join is not None:
-        obj = [obj[i : i + every] for i in range(0, len(obj), every)]  # noqa: E203
-        obj = join.join(obj)
-    return obj
-
-
-def wrap_it(obj, width=60):
-    """Wrap str obj to width.
-
-    Args:
-        obj (:obj:`str`): The str object to wrap.
-        width (:obj:`str`, optional): The width to wrap obj at. Defaults to: 60.
-
-    Returns:
-        (:obj:`str`)
-    """
-    return "\n".join(textwrap.wrap(obj, width)) if width else obj
 
 
 def write_file(path, text, overwrite=False, mkparent=True, protect=True):
@@ -1458,7 +1409,7 @@ def write_file(path, text, overwrite=False, mkparent=True, protect=True):
 
     if not parent.is_dir():
         if mkparent:
-            parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            parent.mkdir(parents=True, exist_ok=True)
         else:
             error = "Directory '{path}' does not exist and mkparent is False"
             error = error.format(path=parent)
@@ -1469,10 +1420,33 @@ def write_file(path, text, overwrite=False, mkparent=True, protect=True):
     if protect:
         try:
             parent.chmod(0o700)
-            path.chmod(0o600)
         except Exception:
+            # where path like /tmp/foo.txt, setting perms on /tmp can throw an exception
+            # just wrap it away quietly. nothing to see here. move along.
             pass
+        path.chmod(0o600)
     return path
+
+
+def read_file(path):
+    """Read text from path.
+
+    Args:
+        path (:obj:`str` or :obj:`pathlib.Path`): Path to file to read.
+
+    Raises:
+        (:obj:`CertHumanError`): if path does not exist.
+
+    Returns:
+        (:obj:`str`)
+    """
+    path = pathlib.Path(path).expanduser().absolute()
+    if not path.is_file():
+        error = "File at path '{path}' not found"
+        error = error.format(path=format(path))
+        raise CertHumanError(error)
+    text = path.read_text()
+    return text
 
 
 def find_certs(txt):
@@ -1490,7 +1464,7 @@ def find_certs(txt):
 
 
 def pem_to_x509(pem):
-    """Convert from PEM to x509.
+    """Convert from PEM str to OpenSSL x509.
 
     Args:
         pem (:obj:`str`): PEM string to convert to x509 certificate object.
@@ -1498,11 +1472,11 @@ def pem_to_x509(pem):
     Returns:
         (:obj:`OpenSSL.crypto.X509`)
     """
-    return pyopenssl.OpenSSL.crypto.load_certificate(PEM_TYPE, pem)
+    return OpenSSL.crypto.load_certificate(PEM_TYPE, pem)
 
 
 def pems_to_x509(pem):
-    """Convert from PEM with multiple certs to x509.
+    """Convert from PEM str with multiple certs to list of OpenSSL x509s.
 
     Args:
         pem (:obj:`str`): PEM string with multiple certs to convert to x509 certificate object.
@@ -1510,11 +1484,11 @@ def pems_to_x509(pem):
     Returns:
         (:obj:`list` of :obj:`OpenSSL.crypto.X509`)
     """
-    return [pem_to_x509(pem=pem) for pem in find_certs(txt=pem)]
+    return [pem_to_x509(p) for p in find_certs(txt=pem)]
 
 
 def x509_to_pem(x509):
-    """Convert from x509 to PEM.
+    """Convert from OpenSSL x509 to PEM str.
 
     Args:
         x509 (:obj:`OpenSSL.crypto.X509`): x509 certificate object to convert to PEM.
@@ -1522,12 +1496,12 @@ def x509_to_pem(x509):
     Returns:
         (:obj:`str`)
     """
-    pem = pyopenssl.OpenSSL.crypto.dump_certificate(PEM_TYPE, x509)
-    return utf8(obj=pem)
+    pem = OpenSSL.crypto.dump_certificate(PEM_TYPE, x509)
+    return six.ensure_text(pem)
 
 
 def x509_to_der(x509):
-    """Convert from x509 to DER.
+    """Convert from OpenSSL x509 to DER bytes.
 
     Args:
         x509 (:obj:`OpenSSL.crypto.X509`): x509 certificate object to convert to DER.
@@ -1535,31 +1509,67 @@ def x509_to_der(x509):
     Returns:
         (:obj:`bytes`)
     """
-    return pyopenssl.OpenSSL.crypto.dump_certificate(ASN1_TYPE, x509)
+    return OpenSSL.crypto.dump_certificate(ASN1_TYPE, x509)
 
 
 def x509_to_asn1(x509):
-    """Convert from x509 to asn1crypto.x509.Certificate.
+    """Convert from OpenSSL x509 to asn1crypto x509.
 
     Args:
         x509 (:obj:`OpenSSL.crypto.X509`): x509 object to convert to :obj:`x509.Certificate`.
 
     Returns:
-        (x509.Certificate)
+        (:obj:`x509.Certificate`)
     """
-    return der_to_asn1(der=x509_to_der(x509=x509))
+    return der_to_asn1(x509_to_der(x509))
+
+
+def asn1_to_der(asn1):
+    """Convert from asn1crypto x509 to DER bytes.
+
+    Args:
+        asn1: (:obj:`x509.Certificate`) asn1crypto x509 to convert to DER bytes
+
+    Returns:
+        (:obj:`bytes`)
+    """
+    return asn1.dump()
+
+
+def asn1_to_x509(asn1):
+    """Convert from asn1crypto x509 to OpenSSL x509.
+
+    Args:
+        asn1: (:obj:`x509.Certificate`) asn1crypto x509 to convert to OpenSSL x509
+
+    Returns:
+        (:obj:`OpenSSL.crypto.X509`)
+    """
+    return der_to_x509(asn1_to_der(asn1))
 
 
 def der_to_asn1(der):
-    """Convert from DER to asn1crypto.x509.Certificate.
+    """Convert from DER bytes to asn1crypto x509.
 
     Args:
         der (:obj:`bytes`): DER bytes string to convert to :obj:`x509.Certificate`.
 
     Returns:
-        (x509.Certificate)
+        (:obj:`x509.Certificate`)
     """
     return asn1crypto.x509.Certificate.load(der)
+
+
+def der_to_x509(der):
+    """Convert from DER bytes to OpenSSL x509.
+
+    Args:
+        der (:obj:`bytes`): DER bytes string to convert to :obj:`x509.Certificate`.
+
+    Returns:
+        (:obj:`OpenSSL.crypto.X509`)
+    """
+    return OpenSSL.crypto.load_certificate(ASN1_TYPE, der)
 
 
 class CertHumanError(Exception):
