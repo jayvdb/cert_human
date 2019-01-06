@@ -62,4 +62,4 @@ clean:
 publish:
 	$(MAKE) build
 	python setup.py upload
-	$(MAKE) build_clean
+	$(MAKE) clean
