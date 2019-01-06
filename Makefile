@@ -45,7 +45,7 @@ docs_do:
 build:
 	# checking if repo has any changes
 	git status
-	# git status | grep "nothing to commit, working tree clean"
+	git status | grep "nothing to commit, working tree clean"
 	$(MAKE) clean
 	# Building Source and Wheel (universal) distribution…
 	python setup.py sdist bdist_wheel --universal
@@ -61,8 +61,5 @@ clean:
 
 publish:
 	$(MAKE) build
-	git status | grep nothing to commit, working tree clean
 	python setup.py upload
 	$(MAKE) build_clean
-
-publish_check:
