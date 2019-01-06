@@ -16,7 +16,7 @@ black_do:
 	black cert_human cert_human_cli.py
 
 cov:
-	pytest --cov-config .coveragerc --verbose --cov-report term --cov-report xml --cov=cert_human tests
+	pytest --junitxml=junit-report.xml --cov-config .coveragerc --verbose --cov-report term --cov-report xml --cov=cert_human tests
 
 cov_html:
 	pytest --cov-config .coveragerc --verbose --cov-report term --cov-report html:cov_html --cov=cert_human tests
