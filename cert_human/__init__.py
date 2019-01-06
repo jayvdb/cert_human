@@ -340,10 +340,7 @@ class CertStore(object):
     def __str__(self):
         """Show dump_str_info."""
         ret = "{cls}:\n{info}"
-        ret = ret.format(
-            cls=clsname(obj=self),
-            info=indent(self.dump_str_info),
-        )
+        ret = ret.format(cls=clsname(obj=self), info=indent(self.dump_str_info))
         return ret
 
     def __repr__(self):
@@ -1559,6 +1556,7 @@ def x509_to_asn1(x509):
     """
     return der_to_asn1(x509_to_der(x509))
 
+
 def x509_to_der(x509):
     """Convert from OpenSSL x509 to DER bytes.
 
@@ -1582,9 +1580,6 @@ def x509_to_pem(x509):
     """
     pem = OpenSSL.crypto.dump_certificate(PEM_TYPE, x509)
     return six.ensure_text(pem)
-
-
-
 
 
 class CertHumanError(Exception):

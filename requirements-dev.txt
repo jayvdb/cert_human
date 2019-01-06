@@ -1,3 +1,5 @@
+wheel
+pipenv
 pytest
 codecov
 pytest-httpbin
