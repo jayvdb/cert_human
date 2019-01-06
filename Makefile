@@ -46,7 +46,7 @@ build:
 	# checking if repo has any changes
 	git status
 	# git status | grep "nothing to commit, working tree clean"
-	$(MAKE) build_clean
+	$(MAKE) clean
 	# Building Source and Wheel (universal) distribution…
 	python setup.py sdist bdist_wheel --universal
 	# twine checking
