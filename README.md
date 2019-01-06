@@ -1,8 +1,8 @@
+[![PyPI version](https://badge.fury.io/py/cert-human.svg)](https://badge.fury.io/py/cert-human)
 [![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/)
 [![made-with-python](https://img.shields.io/badge/Made%20with-Python-1f425f.svg)](https://www.python.org/)
 [![Code Style: Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
 [![Known Vulnerabilities](https://snyk.io/test/github/lifehackjim/cert_human/badge.svg?targetFile=requirements.txt)](https://snyk.io/test/github/lifehackjim/cert_human?targetFile=requirements.txt)
-[![PyPI version](https://badge.fury.io/py/cert-human.svg)](https://badge.fury.io/py/cert-human)
 [![codecov](https://codecov.io/gh/lifehackjim/cert_human/branch/master/graph/badge.svg)](https://codecov.io/gh/lifehackjim/cert_human)
 [![Build Status](https://travis-ci.org/lifehackjim/cert_human.svg?branch=master)](https://travis-ci.org/lifehackjim/cert_human)
 
