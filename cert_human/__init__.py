@@ -180,7 +180,7 @@ def build_url(host, port=443, scheme="https://"):
     return url
 
 
-def test_cert(host, path=True, port=443, timeout=5, **kwargs):
+def test_cert(host, verify=True, port=443, timeout=5, **kwargs):
     """Test that a cert is valid on a site.
 
     Args:
@@ -203,7 +203,6 @@ def test_cert(host, path=True, port=443, timeout=5, **kwargs):
     """
     kwargs.setdefault("timeout", timeout)
     kwargs.setdefault("url", build_url(host=host, port=port))
-    kwargs.setdefault("verify", path)
     try:
         requests.get(**kwargs)
         return (True, None)
@@ -563,7 +562,7 @@ class CertStore(object):
         with tempfile.NamedTemporaryFile(suffix=".pem", mode="w+t") as fh:
             fh.write(self.pem)
             fh.seek(0)
-            ret = test_cert(host, path=fh.name, port=443, timeout=5, **kwargs)
+            ret = test_cert(host, verify=fh.name, port=443, timeout=5, **kwargs)
         return ret
 
     @property
