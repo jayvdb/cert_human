@@ -28,7 +28,7 @@ make lint
 tests
 -----
 ```
-make coverage
+make cov_html
 ```
 * opens cov_html/index.html for review
 

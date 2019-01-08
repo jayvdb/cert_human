@@ -24,6 +24,7 @@ class TestUrllibPatching(object):
         assert issubclass(cert_human.HTTPSConnectionWithCertCls, urllib3.connection.HTTPSConnection)
         assert issubclass(cert_human.ResponseWithCertCls, urllib3.response.HTTPResponse)
 
+
     def test_enable_urllib3_patch(self, httpbin_secure, httpbin_cert):
         cert_human.enable_urllib3_patch()
         r = requests.get(httpbin_secure(), verify=httpbin_cert)
@@ -324,6 +325,7 @@ class TestCertStore(object):
         assert "Subject: Common Name: example.com" in format(store)
 
     def test_from_response_no_withcert(self, httpbin_secure, httpbin_cert):
+        cert_human.disable_urllib3_patch()
         r = requests.get(httpbin_secure(), verify=False)
         with pytest.raises(cert_human.CertHumanError):
             cert_human.CertStore.from_response(r)
@@ -355,6 +357,12 @@ class TestCertStore(object):
         store = cert_human.CertStore.from_path(example_cert)
         ret_path = store.to_path(path, overwrite=True)
         assert ret_path.read_text() == store.pem
+
+    def test_test(self, httpbin_secure, httpbin_cert):
+        store = cert_human.CertStore.from_request(httpbin_secure())
+        valid, exc = store.test(host=httpbin_secure())
+        assert exc is None
+        assert valid
 
     def test_issuer(self, example_cert):
         store = cert_human.CertStore.from_path(example_cert)

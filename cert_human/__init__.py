@@ -13,12 +13,13 @@ import requests
 import re
 import six
 import socket
+import tempfile
 import warnings
 
 from textwrap import wrap
 from contextlib import contextmanager
-from requests.packages import urllib3
-from requests.packages.urllib3.contrib.pyopenssl import OpenSSL
+import urllib3
+import OpenSSL
 
 if six.PY2:
     import pathlib2 as pathlib  # pragma: no cover
@@ -37,8 +38,8 @@ ConnectionCls = HTTPSConnectionPool.ConnectionCls
 ResponseCls = HTTPSConnectionPool.ResponseCls
 
 
-class HTTPSConnectionWithCertCls(ConnectionCls):
-    def connect(self):
+class HTTPSConnectionWithCertCls(ConnectionCls):  # noqa: D101
+    def connect(self):  # noqa: D102
         super(HTTPSConnectionWithCertCls, self).connect()
         self._set_cert_attrs()
 
@@ -56,8 +57,8 @@ class HTTPSConnectionWithCertCls(ConnectionCls):
         self.peer_cert_dict = self.sock.getpeercert()
 
 
-class ResponseWithCertCls(ResponseCls):
-    def __init__(self, *args, **kwargs):
+class ResponseWithCertCls(ResponseCls):  # noqa: D101
+    def __init__(self, *args, **kwargs):  # noqa: D107
         super(ResponseWithCertCls, self).__init__(*args, **kwargs)
         self._set_cert_attrs()
 
@@ -80,10 +81,9 @@ def enable_urllib3_patch():
     """Patch HTTPSConnectionPool to use the WithCert Connect/Response classes.
 
     Examples:
-
         Make a request using :obj:`requests` and patch urllib3 until you want to unpatch it:
 
-        >>> cert_human.enable_urllib3_patch()
+        >>> enable_urllib3_patch()
         >>> response1 = requests.get("https://www.google.com")
         >>> # self-signed, don't verify
         >>> response2 = requests.get("https://cyborg", verify=False)
@@ -91,13 +91,13 @@ def enable_urllib3_patch():
         >>> print(response2.raw.peer_cert.get_subject().get_components())
         >>> # optionally disable the urllib3 patch once you no longer need
         >>> # to make requests with the cert attributes attached
-        >>> cert_human.disable_urllib3_patch()
+        >>> disable_urllib3_patch()
 
     Notes:
-
         Modifies :obj:`urllib3.connectionpool.HTTPSConnectionPool` attributes
         :attr:`urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls` and
         :attr:`urllib3.connectionpool.HTTPSConnectionPool.ResponseCls` to the WithCert classes.
+
     """
     HTTPSConnectionPool.ConnectionCls = HTTPSConnectionWithCertCls
     HTTPSConnectionPool.ResponseCls = ResponseWithCertCls
@@ -107,10 +107,10 @@ def disable_urllib3_patch():
     """Unpatch HTTPSConnectionPool to use the default Connect/Response classes.
 
     Notes:
-
         Modifies :obj:`urllib3.connectionpool.HTTPSConnectionPool` attributes
         :attr:`urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls` and
         :attr:`urllib3.connectionpool.HTTPSConnectionPool.ResponseCls` back to original classes.
+
     """
     HTTPSConnectionPool.ConnectionCls = ConnectionCls
     HTTPSConnectionPool.ResponseCls = ResponseCls
@@ -121,14 +121,14 @@ def urllib3_patch():
     """Context manager to enable/disable cert patch.
 
     Examples:
-
         Make a request using :obj:`requests` using this context manager to patch urllib3:
 
         >>> import requests
-        >>> with cert_human.urllib3_patch():
+        >>> with urllib3_patch():
         ...   response = requests.get("https://www.google.com")
         ...
         >>> print(response.raw.peer_cert.get_subject().get_components())
+
     """
     enable_urllib3_patch()
     yield
@@ -140,6 +140,7 @@ def using_urllib3_patch():
 
     Returns:
         (:obj:`bool`)
+
     """
     connect = HTTPSConnectionPool.ConnectionCls == HTTPSConnectionWithCertCls
     response = HTTPSConnectionPool.ResponseCls == ResponseWithCertCls
@@ -151,6 +152,7 @@ def check_urllib3_patch():
 
     Raises:
         (:obj:`CertHumanError`): if using_urllib3_patch() returns False.
+
     """
     if not using_urllib3_patch():
         error = "Not using WithCert classes in {o}, use enable_urllib3_patch()"
@@ -168,6 +170,7 @@ def build_url(host, port=443, scheme="https://"):
             If no :PORT in host, this will be added to host. Defaults to: 443
         scheme (:obj:`str`, optional):
             Scheme to add to host if no "://" in host. Defaults to: "https://".
+
     """
     url = "{host}".format(host=host)
     if "://" not in url:
@@ -177,7 +180,7 @@ def build_url(host, port=443, scheme="https://"):
     return url
 
 
-def test_cert(host, path="", port=443, timeout=5, **kwargs):
+def test_cert(host, path=True, port=443, timeout=5, **kwargs):
     """Test that a cert is valid on a site.
 
     Args:
@@ -185,18 +188,22 @@ def test_cert(host, path="", port=443, timeout=5, **kwargs):
             can be any of: "scheme://host:port", "scheme://host", or "host".
         port (:obj:`str`, optional): port to connect to on host.
             If no :PORT in host, this will be added to host. Defaults to: 443
-        verify (:obj:`bool`, optional):
-            Path to cert file to use for validation. Defaults to: True.
+        verify (:obj:`bool` or :obj:`str`, optional):
+            True: Perform cert validation using the default CA bundle
+            str: Path to cert file to use in place of default CA bundle.
+            Defaults to: True.
         timeout (:obj:`str`, optional): Timeout for connect/response. Defaults to: 5.
         kwargs: passed thru to requests.get()
 
     Returns:
-        (:obj:`tuple` of (:obj:`bool`, :obj:`Exception`))
+        (:obj:`tuple` of (:obj:`bool`, :obj:`Exception`)):
+            True / False if cert was valid.
+            Exception that was thrown if cert not valid, or None if successfull.
+
     """
     kwargs.setdefault("timeout", timeout)
     kwargs.setdefault("url", build_url(host=host, port=port))
-    if path:
-        kwargs.setdefault("verify", path)
+    kwargs.setdefault("verify", path)
     try:
         requests.get(**kwargs)
         return (True, None)
@@ -208,17 +215,16 @@ def get_response(host, port=443, **kwargs):
     """Get a requests.Response object with cert attributes.
 
     Examples:
-
         Make a request to a site that has a valid cert:
 
-        >>> response = cert_human.get_response(host="www.google.com")
+        >>> response = get_response(host="www.google.com")
         >>> print(response.raw.peer_cert.get_subject().get_components())
         >>> print(response.raw.peer_cert_chain)
         >>> print(response.raw.peer_cert_dict)
 
         Make a request to a site that has an invalid cert (self-signed):
 
-        >>> response = cert_human.get_response(host="cyborg")
+        >>> response = get_response(host="cyborg")
         >>> print(response.raw.peer_cert.get_subject().get_components())
 
     Notes:
@@ -239,6 +245,7 @@ def get_response(host, port=443, **kwargs):
 
     Returns:
         (:obj:`requests.Response`)
+
     """
     kwargs.setdefault("timeout", 5)
     kwargs.setdefault("verify", False)
@@ -252,14 +259,13 @@ def get_response(host, port=443, **kwargs):
 
 
 @contextmanager
-def ssl_socket(host, port=443, sslv2=False, *args, **kwargs):
+def ssl_socket(host, port=443, *args, **kwargs):
     """Context manager to create an SSL socket.
 
     Examples:
-
         Use sockets and OpenSSL to make a request using this context manager:
 
-        >>> with cert_human.ssl_socket(host="cyborg", port=443) as sock:
+        >>> with ssl_socket(host="cyborg", port=443) as sock:
         ...   cert = sock.get_peer_certificate()
         ...   cert_chain = sock.get_peer_cert_chain()
         ...
@@ -269,17 +275,16 @@ def ssl_socket(host, port=443, sslv2=False, *args, **kwargs):
     Args:
         host (:obj:`str`): hostname to connect to.
         port (:obj:`str`, optional): port to connect to on host. Defaults to: 443.
-        sslv2 (:obj:`bool`, optional): Allow SSL v2 connections. Defaults to: False.
 
     Yields:
         (:obj:`OpenSSL.SSL.Connection`)
+
     """
     method = OpenSSL.SSL.TLSv1_METHOD  # Use TLS Method
     ssl_context = OpenSSL.SSL.Context(method)
 
-    if not sslv2:
-        options = OpenSSL.SSL.OP_NO_SSLv2  # Don't accept SSLv2
-        ssl_context.set_options(options)
+    options = OpenSSL.SSL.OP_NO_SSLv2  # Don't accept SSLv2
+    ssl_context.set_options(options)
 
     sock = socket.socket(*args, **kwargs)
     ssl_sock = OpenSSL.SSL.Connection(ssl_context, sock)
@@ -296,15 +301,14 @@ class CertStore(object):
     """Make SSL certs and their attributes generally more accessible.
 
     Examples:
-
-        >>> cert = CertStore(x509)  # x509 cert from any number of methods.
+        >>> cert = CertStore(OpenSSL.crypto.X509)  # x509 cert from any number of methods.
         >>> # not echoing any of these due to length
         >>> print(cert)  # print the basic info for this cert
         >>> x = cert.issuer  # get a dict of the issuer info.
         >>> print(cert.issuer_str)  # print the issuer in str form.
         >>> x = cert.subject  # get a dict of the subject info.
         >>> print(cert.subject_str)  # print the subject in str form.
-        >>> print(cert.dump_str_exts). # print the extensions in str form.
+        >>> print(cert.dump_str_exts)  # print the extensions in str form.
         >>> print(cert.pem) # print the PEM version.
         >>> print(cert.public_key_str)  # print the public key.
         >>> print(cert.dump_str_key)  # print a bunch of public key info.
@@ -315,7 +319,6 @@ class CertStore(object):
         >>> # and so on
 
     Notes:
-
         The whole point of this was to be able to provide the same kind
         of information that is seen when looking at an SSL cert in a browser.
         This can be used to prompt for validity before doing "something". For instance:
@@ -324,6 +327,7 @@ class CertStore(object):
         * If no cert provided, get cert, prompt for validity, then write
           to disk for using in further connections.
         * ... to print it out and hang it on the wall???
+
     """
 
     def __init__(self, x509):
@@ -331,6 +335,7 @@ class CertStore(object):
 
         Args:
             x509 (:obj:`x509.Certificate`): SSL cert in x509 format.
+
         """
         self._x509 = x509
         self._pem = x509_to_pem(x509)
@@ -348,23 +353,22 @@ class CertStore(object):
         return self.__str__()
 
     @classmethod
-    def from_socket(cls, host, port=443, sslv2=False):
+    def from_socket(cls, host, port=443):
         """Make instance of this cls using socket module to get the cert.
 
         Examples:
-
-            >>> cert = cert_human.CertStore.from_socket("cyborg")
+            >>> cert = CertStore.from_socket("cyborg")
             >>> print(cert)
 
         Args:
             host (:obj:`str`): hostname to connect to.
             port (:obj:`str`, optional): port to connect to on host. Defaults to: 443.
-            sslv2 (:obj:`bool`, optional): Allow SSL v2 connections. Defaults to: False.
 
         Returns:
             (:obj:`CertStore`)
+
         """
-        with ssl_socket(host=host, port=port, sslv2=sslv2) as ssl_sock:
+        with ssl_socket(host=host, port=port) as ssl_sock:
             x509 = ssl_sock.get_peer_certificate()
         return cls(x509=x509)
 
@@ -373,8 +377,7 @@ class CertStore(object):
         """Make instance of this cls using requests module to get the cert.
 
         Examples:
-
-            >>> cert = cert_human.CertStore.from_request("cyborg")
+            >>> cert = CertStore.from_request("cyborg")
             >>> print(cert)
 
         Args:
@@ -383,6 +386,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`CertStore`)
+
         """
         response = get_response(host=host, port=port)
         return cls(x509=response.raw.peer_cert)
@@ -392,10 +396,9 @@ class CertStore(object):
         """Make instance of this cls using a requests.Response object.
 
         Examples:
-
-            >>> cert.enable_urllib3_patch()
+            >>> enable_urllib3_patch()
             >>> response = requests.get("https://cyborg", verify=False)
-            >>> cert = cert_human.CertStore.from_response(response)
+            >>> cert = CertStore.from_response(response)
             >>> print(cert)
 
         Notes:
@@ -407,6 +410,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`CertStore`)
+
         """
         attr = "peer_cert"
         x509 = getattr(response.raw, attr, None)
@@ -426,6 +430,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`CertStore`)
+
         """
         try:
             if isinstance(obj, six.string_types):
@@ -459,6 +464,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`CertStore`)
+
         """
         return cls(x509=pem_to_x509(read_file(path)))
 
@@ -468,6 +474,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         return self._pem
 
@@ -477,6 +484,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`OpenSSL.crypto.X509`)
+
         """
         return self._x509
 
@@ -486,6 +494,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`bytes`)
+
         """
         return self._der
 
@@ -495,6 +504,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`x509.Certificate`)
+
         """
         return self._asn1
 
@@ -502,11 +512,10 @@ class CertStore(object):
         """Write self.pem to disk.
 
         Examples:
-
             >>> # get a cert using sockets:
-            >>> cert = cert_human.CertStore.from_socket("cyborg")
+            >>> cert = CertStore.from_socket("cyborg")
             >>> # or, get a cert using requests:
-            >>> cert = cert_human.CertStore.from_request("cyborg")
+            >>> cert = CertStore.from_request("cyborg")
 
             >>> # ideally, do some kind of validation with the user here
             >>> # i.e. use ``print(cert.dump_str)`` to show the same
@@ -525,6 +534,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`pathlib.Path`)
+
         """
         return write_file(
             path=path,
@@ -534,12 +544,35 @@ class CertStore(object):
             protect=protect,
         )
 
+    def test(self, host, port=443, **kwargs):
+        """Test that a cert is valid on a site.
+
+        Args:
+            host (:obj:`str`): hostname to connect to.
+                can be any of: "scheme://host:port", "scheme://host", or "host".
+            port (:obj:`str`, optional): port to connect to on host.
+                If no :PORT in host, this will be added to host. Defaults to: 443
+            kwargs: passed thru to requests.get()
+
+        Returns:
+            (:obj:`tuple` of (:obj:`bool`, :obj:`Exception`)):
+                True / False if cert was valid.
+                Exception that was thrown if cert not valid, or None if successful.
+
+        """
+        with tempfile.NamedTemporaryFile(suffix=".pem", mode="w+t") as fh:
+            fh.write(self.pem)
+            fh.seek(0)
+            ret = test_cert(host, path=fh.name, port=443, timeout=5, **kwargs)
+        return ret
+
     @property
     def issuer(self):
         """Get issuer parts.
 
         Returns:
             (:obj:`dict`)
+
         """
         return dict(self._cert_native["issuer"])
 
@@ -549,6 +582,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         return self.asn1["tbs_certificate"]["issuer"].human_friendly
 
@@ -558,6 +592,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`dict`)
+
         """
         return dict(self._cert_native["subject"])
 
@@ -567,6 +602,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         return self.asn1["tbs_certificate"]["subject"].human_friendly
 
@@ -576,6 +612,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`list` of :obj:`str`)
+
         """
         try:
             return self.asn1.subject_alt_name_value.native
@@ -588,6 +625,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         return ", ".join(self.subject_alt_names)
 
@@ -597,6 +635,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         return self.asn1.sha1_fingerprint
 
@@ -606,6 +645,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         return self.asn1.sha256_fingerprint
 
@@ -614,12 +654,12 @@ class CertStore(object):
         """Public key in hex format.
 
         Notes:
-
             EC certs don't have a modulus, and thus public_key in asn1 obj is not a dict,
             just the cert itself.
 
         Returns:
             (:obj:`str`)
+
         """
         pkn = self._public_key_native["public_key"]
         if self._is_ec:
@@ -633,6 +673,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         pkn = self._public_key_native["public_key"]
         if self._is_ec:
@@ -646,6 +687,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         return self._public_key_native["algorithm"]["parameters"]
 
@@ -655,6 +697,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         return self._public_key_native["algorithm"]["algorithm"]
 
@@ -664,6 +707,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`int`)
+
         """
         return self.x509.get_pubkey().bits()
 
@@ -673,6 +717,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`int`)
+
         """
         pkn = self._public_key_native["public_key"]
         if self._is_ec:
@@ -685,7 +730,8 @@ class CertStore(object):
         """Signature in hex format.
 
         Returns:
-            (:obj:`str`).
+            (:obj:`str`)
+
         """
         return hexify(obj=self.asn1.signature)
 
@@ -695,6 +741,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         return "\n".join(wrap(hexify(self.asn1.signature, space=True)))
 
@@ -704,24 +751,27 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         return self._cert_native["signature"]["algorithm"]
 
     @property
     def x509_version(self):
-        """The x509 version this certificate is using.
+        """Version of x509 this certificate is using.
 
         Returns:
             (:obj:`str`)
+
         """
         return self._cert_native["version"]
 
     @property
     def serial_number(self):
-        """The serial number for this certificate.
+        """Certificate serial number.
 
         Returns:
             (:obj:`str` or :obj:`int`): int if algorithm is 'ec', or hex str.
+
         """
         if self._is_ec:
             return self._cert_native["serial_number"]
@@ -729,10 +779,11 @@ class CertStore(object):
 
     @property
     def serial_number_str(self):
-        """The serial number for this certificate.
+        """Certificate serial number.
 
         Returns:
             (:obj:`str` or :obj:`int`): int if algorithm is 'ec', or spaced and wrapped hex str.
+
         """
         if self._is_ec:
             return self._cert_native["serial_number"]
@@ -744,6 +795,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`bool`)
+
         """
         return self.x509.has_expired()
 
@@ -752,7 +804,8 @@ class CertStore(object):
         """Determine if this certificate is self_sign.
 
         Returns:
-            (:obj:`str`): ('yes', 'maybe', or 'no').
+            (:obj:`str`): ('yes', 'maybe', or 'no')
+
         """
         return self.asn1.self_signed
 
@@ -762,6 +815,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`bool`)
+
         """
         return self.asn1.self_issued
 
@@ -771,6 +825,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`datetime.datetime`)
+
         """
         return self._cert_native["validity"]["not_before"]
 
@@ -780,6 +835,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         return "{o}".format(o=self.not_valid_before)
 
@@ -789,6 +845,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`datetime.datetime`)
+
         """
         return self._cert_native["validity"]["not_after"]
 
@@ -798,6 +855,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         return "{o}".format(o=self.not_valid_after)
 
@@ -806,12 +864,12 @@ class CertStore(object):
         """Certificate extensions as dict.
 
         Notes:
-
             Parsing the extensions was not easy. I sort of gave up at one point.
             Resorted to using str(extension) as OpenSSL returns it.
 
         Returns:
             (:obj:`dict`)
+
         """
         ret = {}
         for ext in self._extensions:
@@ -826,6 +884,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         ret = []
         for idx, ext_items in enumerate(self._extensions):
@@ -842,38 +901,39 @@ class CertStore(object):
 
         Returns:
             (:obj:`dict`)
+
         """
-        return dict(
-            issuer=self.issuer,
-            issuer_str=self.issuer_str,
-            subject=self.subject,
-            subject_str=self.subject_str,
-            subject_alt_names=self.subject_alt_names,
-            subject_alt_names_str=self.subject_alt_names_str,
-            fingerprint_sha1=self.fingerprint_sha1,
-            fingerprint_sha256=self.fingerprint_sha256,
-            public_key=self.public_key,
-            public_key_str=self.public_key_str,
-            public_key_parameters=self.public_key_parameters,
-            public_key_algorithm=self.public_key_algorithm,
-            public_key_size=self.public_key_size,
-            public_key_exponent=self.public_key_exponent,
-            signature=self.signature,
-            signature_str=self.signature_str,
-            signature_algorithm=self.signature_algorithm,
-            x509_version=self.x509_version,
-            serial_number=self.serial_number,
-            serial_number_str=self.serial_number_str,
-            is_expired=self.is_expired,
-            is_self_signed=self.is_self_signed,
-            is_self_issued=self.is_self_issued,
-            not_valid_before=self.not_valid_before,
-            not_valid_before_str=self.not_valid_before_str,
-            not_valid_after=self.not_valid_after,
-            not_valid_after_str=self.not_valid_after_str,
-            extensions=self.extensions,
-            extensions_str=self.extensions_str,
-        )
+        return {
+            "issuer": self.issuer,
+            "issuer_str": self.issuer_str,
+            "subject": self.subject,
+            "subject_str": self.subject_str,
+            "subject_alt_names": self.subject_alt_names,
+            "subject_alt_names_str": self.subject_alt_names_str,
+            "fingerprint_sha1": self.fingerprint_sha1,
+            "fingerprint_sha256": self.fingerprint_sha256,
+            "public_key": self.public_key,
+            "public_key_str": self.public_key_str,
+            "public_key_parameters": self.public_key_parameters,
+            "public_key_algorithm": self.public_key_algorithm,
+            "public_key_size": self.public_key_size,
+            "public_key_exponent": self.public_key_exponent,
+            "signature": self.signature,
+            "signature_str": self.signature_str,
+            "signature_algorithm": self.signature_algorithm,
+            "x509_version": self.x509_version,
+            "serial_number": self.serial_number,
+            "serial_number_str": self.serial_number_str,
+            "is_expired": self.is_expired,
+            "is_self_signed": self.is_self_signed,
+            "is_self_issued": self.is_self_issued,
+            "not_valid_before": self.not_valid_before,
+            "not_valid_before_str": self.not_valid_before_str,
+            "not_valid_after": self.not_valid_after,
+            "not_valid_after_str": self.not_valid_after_str,
+            "extensions": self.extensions,
+            "extensions_str": self.extensions_str,
+        }
 
     @property
     def dump_json_friendly(self):
@@ -881,36 +941,37 @@ class CertStore(object):
 
         Returns:
             (:obj:`dict`)
+
         """
-        return dict(
-            issuer=self.issuer,
-            issuer_str=self.issuer_str,
-            subject=self.subject,
-            subject_str=self.subject_str,
-            subject_alt_names=self.subject_alt_names,
-            subject_alt_names_str=self.subject_alt_names_str,
-            fingerprint_sha1=self.fingerprint_sha1,
-            fingerprint_sha256=self.fingerprint_sha256,
-            public_key=self.public_key,
-            public_key_str=self.public_key_str,
-            public_key_parameters=self.public_key_parameters,
-            public_key_algorithm=self.public_key_algorithm,
-            public_key_size=self.public_key_size,
-            public_key_exponent=self.public_key_exponent,
-            signature=self.signature,
-            signature_str=self.signature_str,
-            signature_algorithm=self.signature_algorithm,
-            x509_version=self.x509_version,
-            serial_number=self.serial_number,
-            serial_number_str=self.serial_number_str,
-            is_expired=self.is_expired,
-            is_self_signed=self.is_self_signed,
-            is_self_issued=self.is_self_issued,
-            not_valid_before_str=self.not_valid_before_str,
-            not_valid_after_str=self.not_valid_after_str,
-            extensions=self.extensions,
-            extensions_str=self.extensions_str,
-        )
+        return {
+            "issuer": self.issuer,
+            "issuer_str": self.issuer_str,
+            "subject": self.subject,
+            "subject_str": self.subject_str,
+            "subject_alt_names": self.subject_alt_names,
+            "subject_alt_names_str": self.subject_alt_names_str,
+            "fingerprint_sha1": self.fingerprint_sha1,
+            "fingerprint_sha256": self.fingerprint_sha256,
+            "public_key": self.public_key,
+            "public_key_str": self.public_key_str,
+            "public_key_parameters": self.public_key_parameters,
+            "public_key_algorithm": self.public_key_algorithm,
+            "public_key_size": self.public_key_size,
+            "public_key_exponent": self.public_key_exponent,
+            "signature": self.signature,
+            "signature_str": self.signature_str,
+            "signature_algorithm": self.signature_algorithm,
+            "x509_version": self.x509_version,
+            "serial_number": self.serial_number,
+            "serial_number_str": self.serial_number_str,
+            "is_expired": self.is_expired,
+            "is_self_signed": self.is_self_signed,
+            "is_self_issued": self.is_self_issued,
+            "not_valid_before_str": self.not_valid_before_str,
+            "not_valid_after_str": self.not_valid_after_str,
+            "extensions": self.extensions,
+            "extensions_str": self.extensions_str,
+        }
 
     @property
     def dump_json(self):
@@ -918,6 +979,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         return json.dumps(self.dump_json_friendly, indent=2)
 
@@ -927,6 +989,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         items = [self.dump_str_exts, self.dump_str_key, self.dump_str_info]
         return "\n\n".join(items)
@@ -937,6 +1000,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         tmpl = "{title}: {info}".format
         items = [
@@ -967,6 +1031,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         exts = indent(self.extensions_str)
         items = "Extensions:\n{v}".format(v=exts)
@@ -978,6 +1043,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         key = "Public Key Algorithm: {a}, Size: {s}, Exponent: {e}, Value:\n{v}".format
         sig = "Signature Algorithm: {a}, Value:\n{v}".format
@@ -1002,6 +1068,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         lines = [x for x in format(ext).splitlines() if x]
         j = " " if len(lines) < 5 else "\n"
@@ -1013,6 +1080,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`list` of :obj:`list`)
+
         """
         exts = [
             self.x509.get_extension(i) for i in range(self.x509.get_extension_count())
@@ -1021,19 +1089,21 @@ class CertStore(object):
 
     @property
     def _public_key_native(self):
-        """Utility for easy access to the dict in self.asn1.public_key.
+        """Access self.asn1.public_key.
 
         Returns:
             (:obj:`dict`)
+
         """
         return self.asn1.public_key.native
 
     @property
     def _cert_native(self):
-        """Utility for easy access to the dict in self.asn1.
+        """Access to self.asn1.
 
         Returns:
             (:obj:`dict`)
+
         """
         return self.asn1.native["tbs_certificate"]
 
@@ -1043,6 +1113,7 @@ class CertStore(object):
 
         Returns:
             (:obj:`bool`)
+
         """
         return self.public_key_algorithm == "ec"
 
@@ -1051,6 +1122,7 @@ class CertChainStore(object):
     """Make SSL cert chains and their attributes generally more accessible.
 
     This is really just a list container for a cert chain, which is just a list of x509 certs.
+
     """
 
     def __init__(self, x509=None):
@@ -1059,6 +1131,7 @@ class CertChainStore(object):
         Args:
             x509 (:obj:`list` of :obj:`x509.Certificate`, optional):
                 List of SSL certs in x509 format. Defaults to: [].
+
         """
         self._x509 = x509 or []
         self._certs = [CertStore(x509=c) for c in x509]
@@ -1082,7 +1155,7 @@ class CertChainStore(object):
         return len(self._certs)
 
     def append(self, value):
-        """Passthru to self._certs.append() with automatic conversion for PEM or X509.
+        """Passthru to self._certs.append with automatic conversion for PEM or X509.
 
         Args:
             value (:obj:`str` or :obj:`OpenSSL.crypto.X509` or :obj:`CertStore`)
@@ -1093,23 +1166,22 @@ class CertChainStore(object):
             self._certs.append(CertStore.from_auto(value))
 
     @classmethod
-    def from_socket(cls, host, port=443, sslv2=False):
+    def from_socket(cls, host, port=443):
         """Make instance of this cls using socket module to get the cert chain.
 
         Examples:
-
-            >>> cert_chain = cert_human.CertChainStore.from_socket("cyborg")
+            >>> cert_chain = CertChainStore.from_socket("cyborg")
             >>> print(cert_chain)
 
         Args:
             host (:obj:`str`): hostname to connect to.
             port (:obj:`str`, optional): port to connect to on host. Defaults to: 443.
-            sslv2 (:obj:`bool`, optional): Allow SSL v2 connections. Defaults to: False.
 
         Returns:
             (:obj:`CertChainStore`)
+
         """
-        with ssl_socket(host=host, port=port, sslv2=sslv2) as ssl_sock:
+        with ssl_socket(host=host, port=port) as ssl_sock:
             return cls(x509=ssl_sock.get_peer_cert_chain())
 
     @classmethod
@@ -1117,8 +1189,7 @@ class CertChainStore(object):
         """Make instance of this cls using requests module to get the cert chain.
 
         Examples:
-
-            >>> cert_chain = cert_human.CertChainStore.from_request("cyborg")
+            >>> cert_chain = CertChainStore.from_request("cyborg")
             >>> print(cert_chain)
 
         Args:
@@ -1128,6 +1199,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`CertChainStore`)
+
         """
         response = get_response(host=host, port=port)
         return cls(x509=response.raw.peer_cert_chain)
@@ -1137,10 +1209,9 @@ class CertChainStore(object):
         """Make instance of this cls using a requests.Response.raw object.
 
         Examples:
-
-            >>> cert.enable_urllib3_patch()
+            >>> enable_urllib3_patch()
             >>> response = requests.get("https://cyborg", verify=False)
-            >>> cert_chain = cert_human.CertChainStore.from_response(response)
+            >>> cert_chain = CertChainStore.from_response(response)
             >>> print(cert_chain)
 
         Notes:
@@ -1152,6 +1223,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`CertChainStore`)
+
         """
         attr = "peer_cert_chain"
         x509 = getattr(response.raw, attr, None)
@@ -1170,6 +1242,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`CertChainStore`)
+
         """
         return cls(x509=pems_to_x509(pem))
 
@@ -1182,6 +1255,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`CertChainStore`)
+
         """
         return cls(x509=pems_to_x509(read_file(path)))
 
@@ -1196,6 +1270,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`str`): all PEM strings joined.
+
         """
         return "".join([c.pem for c in self])
 
@@ -1205,6 +1280,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`list` of :obj:`x509.Certificate`)
+
         """
         return [c.x509 for c in self]
 
@@ -1214,6 +1290,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`list` of :obj:`bytes`)
+
         """
         return [c.der for c in self]
 
@@ -1223,6 +1300,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`list` of :obj:`x509.Certificate`)
+
         """
         return [c.asn1 for c in self]
 
@@ -1234,6 +1312,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`pathlib.Path`)
+
         """
         return write_file(
             path=path,
@@ -1249,6 +1328,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`list` of :obj:`dict`)
+
         """
         return [o.dump_json_friendly for o in self]
 
@@ -1258,6 +1338,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         return json.dumps(self.dump_json_friendly, indent=2)
 
@@ -1267,6 +1348,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`list` of :obj:`dict`)
+
         """
         return [o.dump for o in self]
 
@@ -1276,6 +1358,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         tmpl = "{c} #{i}\n{s}".format
         items = [
@@ -1290,6 +1373,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         tmpl = "-{di} {c} #{i}\n{s}\n".format
         items = [
@@ -1309,6 +1393,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         tmpl = "{c} #{i}\n{s}".format
         items = [
@@ -1323,6 +1408,7 @@ class CertChainStore(object):
 
         Returns:
             (:obj:`str`)
+
         """
         tmpl = "{c} #{i}\n{s}".format
         items = [
@@ -1340,13 +1426,14 @@ def clsname(obj):
 
     Returns:
         (:obj:`str`)
+
     """
-    if inspect.isclass(obj) or obj.__module__ in set(["builtins", "__builtin__"]):
+    if inspect.isclass(obj) or obj.__module__ in ["builtins", "__builtin__"]:
         return obj.__name__
     return obj.__class__.__name__
 
 
-def hexify(obj, space=False, join=" ", every=2, zerofill=True):
+def hexify(obj, space=False, every=2, zerofill=True):
     """Convert bytes, int, or str to hex and optionally space it out.
 
     Args:
@@ -1359,18 +1446,18 @@ def hexify(obj, space=False, join=" ", every=2, zerofill=True):
 
     Returns:
         (:obj:`str`)
+
     """
     if isinstance(obj, six.string_types) or isinstance(obj, six.binary_type):
         obj = binascii.hexlify(obj)
-    elif isinstance(obj, six.integer_types):
+    if isinstance(obj, six.integer_types):
         obj = format(obj, "X")
     obj = six.ensure_text(obj).upper()
     if len(obj) % 2 and zerofill:
         obj = obj.zfill(len(obj) + 1)
     if space:
-        if join is not None:
-            obj = [obj[i : i + every] for i in range(0, len(obj), every)]  # noqa: E203
-            obj = join.join(obj)
+        obj = [obj[i : i + every] for i in range(0, len(obj), every)]  # noqa: E203
+        obj = " ".join(obj)
     return obj
 
 
@@ -1384,6 +1471,7 @@ def indent(txt, n=4, s=" "):
 
     Returns:
         (:obj:`str`)
+
     """
     txt = "{t}".format(t=txt)
     tmpl = "{s}{line}".format
@@ -1408,6 +1496,7 @@ def write_file(path, text, overwrite=False, mkparent=True, protect=True):
 
     Returns:
         (:obj:`pathlib.Path`)
+
     """
     path = pathlib.Path(path).expanduser().absolute()
     parent = path.parent
@@ -1430,7 +1519,7 @@ def write_file(path, text, overwrite=False, mkparent=True, protect=True):
     if protect:
         try:
             parent.chmod(0o700)
-        except Exception:
+        except Exception:  # nosec
             # where path like /tmp/foo.txt, setting perms on /tmp can throw an exception
             # just wrap it away quietly. nothing to see here. move along.
             pass
@@ -1449,6 +1538,7 @@ def read_file(path):
 
     Returns:
         (:obj:`str`)
+
     """
     path = pathlib.Path(path).expanduser().absolute()
     if not path.is_file():
@@ -1467,6 +1557,7 @@ def find_certs(txt):
 
     Returns:
         (:obj:`list` of :obj:`str`)
+
     """
     pattern = r"-----BEGIN.*?-----.*?-----END.*?-----"
     pattern = re.compile(pattern, re.DOTALL)
@@ -1481,6 +1572,7 @@ def asn1_to_der(asn1):
 
     Returns:
         (:obj:`bytes`)
+
     """
     return asn1.dump()
 
@@ -1493,6 +1585,7 @@ def asn1_to_x509(asn1):
 
     Returns:
         (:obj:`OpenSSL.crypto.X509`)
+
     """
     return der_to_x509(asn1_to_der(asn1))
 
@@ -1505,6 +1598,7 @@ def der_to_asn1(der):
 
     Returns:
         (:obj:`x509.Certificate`)
+
     """
     return asn1crypto.x509.Certificate.load(der)
 
@@ -1517,6 +1611,7 @@ def der_to_x509(der):
 
     Returns:
         (:obj:`OpenSSL.crypto.X509`)
+
     """
     return OpenSSL.crypto.load_certificate(ASN1_TYPE, der)
 
@@ -1529,6 +1624,7 @@ def pem_to_x509(pem):
 
     Returns:
         (:obj:`OpenSSL.crypto.X509`)
+
     """
     return OpenSSL.crypto.load_certificate(PEM_TYPE, pem)
 
@@ -1541,6 +1637,7 @@ def pems_to_x509(pem):
 
     Returns:
         (:obj:`list` of :obj:`OpenSSL.crypto.X509`)
+
     """
     return [pem_to_x509(p) for p in find_certs(txt=pem)]
 
@@ -1553,6 +1650,7 @@ def x509_to_asn1(x509):
 
     Returns:
         (:obj:`x509.Certificate`)
+
     """
     return der_to_asn1(x509_to_der(x509))
 
@@ -1565,6 +1663,7 @@ def x509_to_der(x509):
 
     Returns:
         (:obj:`bytes`)
+
     """
     return OpenSSL.crypto.dump_certificate(ASN1_TYPE, x509)
 
@@ -1577,6 +1676,7 @@ def x509_to_pem(x509):
 
     Returns:
         (:obj:`str`)
+
     """
     pem = OpenSSL.crypto.dump_certificate(PEM_TYPE, x509)
     return six.ensure_text(pem)

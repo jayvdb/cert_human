@@ -1,4 +1,4 @@
-.PHONY: docs
+.PHONY: docs cov_html
 envinit:
 	pip install -r requirements.txt --upgrade
 	pip install -r requirements-dev.txt --upgrade
@@ -20,7 +20,7 @@ cov:
 
 cov_html:
 	pytest --cov-config .coveragerc --verbose --cov-report term --cov-report html:cov_html --cov=cert_human tests
-	open cov_html/index.html
+	# open cov_html/index.html
 
 detox:
 	# This runs all of the tests for both Python 2 and Python 3.
