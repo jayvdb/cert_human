@@ -180,7 +180,7 @@ def build_url(host, port=443, scheme="https://"):
     return url
 
 
-def test_cert(host, verify=True, port=443, timeout=5, **kwargs):
+def test_cert(host, port=443, verify=True, timeout=5, **kwargs):
     """Test that a cert is valid on a site.
 
     Args:
