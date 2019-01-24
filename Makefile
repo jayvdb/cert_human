@@ -6,10 +6,10 @@ envinit:
 
 envreset:
 	pipenv --rm
-	$(MAKE) init
+	$(MAKE) envinit
 
 lint:
-	flake8 --max-line-length 100 --max-complexity=10 cert_human
+	flake8 --max-line-length 88 --max-complexity=10 cert_human
 	black --diff cert_human cert_human_cli.py
 
 black_do:

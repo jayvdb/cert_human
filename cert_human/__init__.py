@@ -52,9 +52,14 @@ class HTTPSConnectionWithCertCls(ConnectionCls):  # noqa: D101
           - peer_cert_chain: x509 certificate chain of the server
           - peer_cert_dict: dictionary containing commonName and subjectAltName
         """
-        self.peer_cert = self.sock.connection.get_peer_certificate()
-        self.peer_cert_chain = self.sock.connection.get_peer_cert_chain()
-        self.peer_cert_dict = self.sock.getpeercert()
+        sock = getattr(self, "sock", None)
+        conn = getattr(sock, "connection", None)
+        conn_gpc = getattr(conn, "get_peer_certificate", None)
+        conn_gpcc = getattr(conn, "get_peer_cert_chain", None)
+        gpc = getattr(sock, "getpeercert", None)
+        self.peer_cert = conn_gpc() if conn_gpc else None
+        self.peer_cert_chain = conn_gpcc() if conn_gpcc else None
+        self.peer_cert_dict = gpc() if gpc else None
 
 
 class ResponseWithCertCls(ResponseCls):  # noqa: D101
@@ -72,16 +77,18 @@ class ResponseWithCertCls(ResponseCls):  # noqa: D101
           - :obj:`requests.Response`.raw.peer_cert_chain
           - :obj:`requests.Response`.raw.peer_cert_dict
         """
-        self.peer_cert = self._connection.peer_cert
-        self.peer_cert_chain = self._connection.peer_cert_chain
-        self.peer_cert_dict = self._connection.peer_cert_dict
+        conn = getattr(self, "_connection", None)
+        self.peer_cert = getattr(conn, "peer_cert", None)
+        self.peer_cert_chain = getattr(conn, "peer_cert_chain", None)
+        self.peer_cert_dict = getattr(conn, "peer_cert_dict", None)
 
 
 def enable_urllib3_patch():
     """Patch HTTPSConnectionPool to use the WithCert Connect/Response classes.
 
     Examples:
-        Make a request using :obj:`requests` and patch urllib3 until you want to unpatch it:
+        Make a request using :obj:`requests` and patch urllib3 until
+        you want to unpatch it:
 
         >>> enable_urllib3_patch()
         >>> response1 = requests.get("https://www.google.com")
@@ -96,7 +103,8 @@ def enable_urllib3_patch():
     Notes:
         Modifies :obj:`urllib3.connectionpool.HTTPSConnectionPool` attributes
         :attr:`urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls` and
-        :attr:`urllib3.connectionpool.HTTPSConnectionPool.ResponseCls` to the WithCert classes.
+        :attr:`urllib3.connectionpool.HTTPSConnectionPool.ResponseCls`
+        to the WithCert classes.
 
     """
     HTTPSConnectionPool.ConnectionCls = HTTPSConnectionWithCertCls
@@ -109,7 +117,8 @@ def disable_urllib3_patch():
     Notes:
         Modifies :obj:`urllib3.connectionpool.HTTPSConnectionPool` attributes
         :attr:`urllib3.connectionpool.HTTPSConnectionPool.ConnectionCls` and
-        :attr:`urllib3.connectionpool.HTTPSConnectionPool.ResponseCls` back to original classes.
+        :attr:`urllib3.connectionpool.HTTPSConnectionPool.ResponseCls` back to
+        original classes.
 
     """
     HTTPSConnectionPool.ConnectionCls = ConnectionCls
@@ -121,7 +130,8 @@ def urllib3_patch():
     """Context manager to enable/disable cert patch.
 
     Examples:
-        Make a request using :obj:`requests` using this context manager to patch urllib3:
+        Make a request using :obj:`requests` using this context manager to
+        patch urllib3:
 
         >>> import requests
         >>> with urllib3_patch():
@@ -164,12 +174,16 @@ def build_url(host, port=443, scheme="https://"):
     """Build a url from host and port.
 
     Args:
-        host (:obj:`str`): hostname part of url.
+        host (:obj:`str`):
+            hostname part of url.
             can be any of: "scheme://host:port", "scheme://host", or "host".
-        port (:obj:`str`, optional): port to connect to on host.
-            If no :PORT in host, this will be added to host. Defaults to: 443
+        port (:obj:`str`, optional):
+            port to connect to on host.
+            If no :PORT in host, this will be added to host.
+            Defaults to: 443
         scheme (:obj:`str`, optional):
-            Scheme to add to host if no "://" in host. Defaults to: "https://".
+            Scheme to add to host if no "://" in host.
+            Defaults to: "https://".
 
     """
     url = "{host}".format(host=host)
@@ -180,19 +194,20 @@ def build_url(host, port=443, scheme="https://"):
     return url
 
 
-def test_cert(host, port=443, verify=True, timeout=5, **kwargs):
+def test_cert(host, port=443, timeout=5, **kwargs):
     """Test that a cert is valid on a site.
 
     Args:
-        host (:obj:`str`): hostname to connect to.
+        host (:obj:`str`):
+            hostname to connect to.
             can be any of: "scheme://host:port", "scheme://host", or "host".
-        port (:obj:`str`, optional): port to connect to on host.
-            If no :PORT in host, this will be added to host. Defaults to: 443
-        verify (:obj:`bool` or :obj:`str`, optional):
-            True: Perform cert validation using the default CA bundle
-            str: Path to cert file to use in place of default CA bundle.
-            Defaults to: True.
-        timeout (:obj:`str`, optional): Timeout for connect/response. Defaults to: 5.
+        port (:obj:`str`, optional):
+            port to connect to on host.
+            If no :PORT in host, this will be added to host.
+            Defaults to: 443
+        timeout (:obj:`str`, optional):
+            Timeout for connect/response.
+            Defaults to: 5.
         kwargs: passed thru to requests.get()
 
     Returns:
@@ -236,10 +251,13 @@ def get_response(host, port=443, **kwargs):
         * Makes a request to a server using :func:`requests.get`
 
     Args:
-        host (:obj:`str`): hostname to connect to.
+        host (:obj:`str`):
+            hostname to connect to.
             can be any of: "scheme://host:port", "scheme://host", or "host".
-        port (:obj:`str`, optional): port to connect to on host.
-            If no :PORT in host, this will be added to host. Defaults to: 443
+        port (:obj:`str`, optional):
+            port to connect to on host.
+            If no :PORT in host, this will be added to host.
+            Defaults to: 443
         kwargs: passed thru to requests.get()
 
     Returns:
@@ -272,8 +290,11 @@ def ssl_socket(host, port=443, *args, **kwargs):
         >>> print(cert_chain)
 
     Args:
-        host (:obj:`str`): hostname to connect to.
-        port (:obj:`str`, optional): port to connect to on host. Defaults to: 443.
+        host (:obj:`str`):
+            hostname to connect to.
+        port (:obj:`str`, optional):
+            port to connect to on host.
+            Defaults to: 443.
 
     Yields:
         (:obj:`OpenSSL.SSL.Connection`)
@@ -300,7 +321,8 @@ class CertStore(object):
     """Make SSL certs and their attributes generally more accessible.
 
     Examples:
-        >>> cert = CertStore(OpenSSL.crypto.X509)  # x509 cert from any number of methods.
+        >>> # x509 cert from any number of methods
+        >>> cert = CertStore(OpenSSL.crypto.X509)
         >>> # not echoing any of these due to length
         >>> print(cert)  # print the basic info for this cert
         >>> x = cert.issuer  # get a dict of the issuer info.
@@ -322,7 +344,8 @@ class CertStore(object):
         of information that is seen when looking at an SSL cert in a browser.
         This can be used to prompt for validity before doing "something". For instance:
 
-        * If no cert provided, get the cert and prompt user for validity before continuing.
+        * If no cert provided, get the cert and prompt user for validity before
+          continuing.
         * If no cert provided, get cert, prompt for validity, then write
           to disk for using in further connections.
         * ... to print it out and hang it on the wall???
@@ -333,7 +356,8 @@ class CertStore(object):
         """Constructor.
 
         Args:
-            x509 (:obj:`x509.Certificate`): SSL cert in x509 format.
+            x509 (:obj:`x509.Certificate`):
+                SSL cert in x509 format.
 
         """
         self._x509 = x509
@@ -360,8 +384,11 @@ class CertStore(object):
             >>> print(cert)
 
         Args:
-            host (:obj:`str`): hostname to connect to.
-            port (:obj:`str`, optional): port to connect to on host. Defaults to: 443.
+            host (:obj:`str`):
+                hostname to connect to.
+            port (:obj:`str`, optional):
+                port to connect to on host.
+                Defaults to: 443.
 
         Returns:
             (:obj:`CertStore`)
@@ -380,8 +407,11 @@ class CertStore(object):
             >>> print(cert)
 
         Args:
-            host (:obj:`str`): hostname to connect to.
-            port (:obj:`str`, optional): port to connect to on host. Defaults to: 443.
+            host (:obj:`str`):
+                hostname to connect to.
+            port (:obj:`str`, optional):
+                port to connect to on host.
+                Defaults to: 443.
 
         Returns:
             (:obj:`CertStore`)
@@ -402,10 +432,12 @@ class CertStore(object):
 
         Notes:
             This relies on the fact that :func:`enable_urllib3_patch` has
-            been used to add the SSL attributes to the :obj:`requests.Response`.raw object.
+            been used to add the SSL attributes to the :obj:`requests.Response`.raw
+            object.
 
         Args:
-            response (:obj:`requests.Response`): response object to get raw.peer_cert from.
+            response (:obj:`requests.Response`):
+                response object to get raw.peer_cert.
 
         Returns:
             (:obj:`CertStore`)
@@ -414,7 +446,10 @@ class CertStore(object):
         attr = "peer_cert"
         x509 = getattr(response.raw, attr, None)
         if not x509:
-            error = "Response missing attribute 'raw.{a}', not issued using enable_urllib3_patch"
+            error = (
+                "Response missing attribute 'raw.{a}', not issued using "
+                "enable_urllib3_patch"
+            )
             error = error.format(a=attr)
             raise CertHumanError(error)
         return cls(x509=x509)
@@ -425,7 +460,8 @@ class CertStore(object):
 
         Args:
             obj (:obj:`str` or :obj:`bytes` or :obj:`OpenSSL.crypto.X509` or
-                :obj:`X509.Certificate` or :obj:`requests.Response`): Object to create CertStore.
+                :obj:`X509.Certificate` or :obj:`requests.Response`):
+                Object to create CertStore.
 
         Returns:
             (:obj:`CertStore`)
@@ -459,7 +495,8 @@ class CertStore(object):
         """Make instance of this cls from a file containing a PEM.
 
         Args:
-            path (:obj:`str` or :obj:`pathlib.Path`): Path to file containing PEM.
+            path (:obj:`str` or :obj:`pathlib.Path`):
+                Path to file containing PEM.
 
         Returns:
             (:obj:`CertStore`)
@@ -529,7 +566,8 @@ class CertStore(object):
             >>> response = requests.get("https://cyborg", verify=cert_path)
 
         Args:
-            path (:obj:`str` or :obj:`pathlib.Path`): Path to write self.pem.
+            path (:obj:`str` or :obj:`pathlib.Path`):
+                Path to write self.pem.
 
         Returns:
             (:obj:`pathlib.Path`)
@@ -547,10 +585,13 @@ class CertStore(object):
         """Test that a cert is valid on a site.
 
         Args:
-            host (:obj:`str`): hostname to connect to.
+            host (:obj:`str`):
+                hostname to connect to.
                 can be any of: "scheme://host:port", "scheme://host", or "host".
-            port (:obj:`str`, optional): port to connect to on host.
-                If no :PORT in host, this will be added to host. Defaults to: 443
+            port (:obj:`str`, optional):
+                port to connect to on host.
+                If no :PORT in host, this will be added to host.
+                Defaults to: 443
             kwargs: passed thru to requests.get()
 
         Returns:
@@ -653,8 +694,8 @@ class CertStore(object):
         """Public key in hex format.
 
         Notes:
-            EC certs don't have a modulus, and thus public_key in asn1 obj is not a dict,
-            just the cert itself.
+            EC certs don't have a modulus, and thus public_key in asn1 obj is not a
+            dict, just the cert itself.
 
         Returns:
             (:obj:`str`)
@@ -769,7 +810,8 @@ class CertStore(object):
         """Certificate serial number.
 
         Returns:
-            (:obj:`str` or :obj:`int`): int if algorithm is 'ec', or hex str.
+            (:obj:`str` or :obj:`int`):
+                int if algorithm is 'ec', or hex str.
 
         """
         if self._is_ec:
@@ -781,7 +823,8 @@ class CertStore(object):
         """Certificate serial number.
 
         Returns:
-            (:obj:`str` or :obj:`int`): int if algorithm is 'ec', or spaced and wrapped hex str.
+            (:obj:`str` or :obj:`int`):
+                int if algorithm is 'ec', or spaced and wrapped hex str.
 
         """
         if self._is_ec:
@@ -1120,7 +1163,8 @@ class CertStore(object):
 class CertChainStore(object):
     """Make SSL cert chains and their attributes generally more accessible.
 
-    This is really just a list container for a cert chain, which is just a list of x509 certs.
+    This is really just a list container for a cert chain,
+    which is just a list of x509 certs.
 
     """
 
@@ -1173,8 +1217,11 @@ class CertChainStore(object):
             >>> print(cert_chain)
 
         Args:
-            host (:obj:`str`): hostname to connect to.
-            port (:obj:`str`, optional): port to connect to on host. Defaults to: 443.
+            host (:obj:`str`):
+                hostname to connect to.
+            port (:obj:`str`, optional):
+                port to connect to on host.
+                Defaults to: 443.
 
         Returns:
             (:obj:`CertChainStore`)
@@ -1192,9 +1239,14 @@ class CertChainStore(object):
             >>> print(cert_chain)
 
         Args:
-            host (:obj:`str`): hostname to connect to.
-            port (:obj:`str`, optional): port to connect to on host. Defaults to: 443.
-            timeout (:obj:`str`, optional): Timeout for connect/response. Defaults to: 5.
+            host (:obj:`str`):
+                hostname to connect to.
+            port (:obj:`str`, optional):
+                port to connect to on host.
+                Defaults to: 443.
+            timeout (:obj:`str`, optional):
+                Timeout for connect/response.
+                Defaults to: 5.
 
         Returns:
             (:obj:`CertChainStore`)
@@ -1214,11 +1266,12 @@ class CertChainStore(object):
             >>> print(cert_chain)
 
         Notes:
-            This relies on the fact that :func:`enable_urllib3_patch` has been used to add the SSL
-            attributes to the :obj:`requests.Response`.raw object.
+            This relies on the fact that :func:`enable_urllib3_patch` has been used to
+            add the SSL attributes to the :obj:`requests.Response`.raw object.
 
         Args:
-            response (:obj:`requests.Response`): response object to get raw.peer_cert_chain from.
+            response (:obj:`requests.Response`):
+                response object to get raw.peer_cert_chain from.
 
         Returns:
             (:obj:`CertChainStore`)
@@ -1227,7 +1280,10 @@ class CertChainStore(object):
         attr = "peer_cert_chain"
         x509 = getattr(response.raw, attr, None)
         if not x509:
-            error = "Response missing attribute 'raw.{a}', not issued using enable_urllib3_patch"
+            error = (
+                "Response missing attribute 'raw.{a}', not issued using "
+                "enable_urllib3_patch"
+            )
             error = error.format(a=attr)
             raise CertHumanError(error)
         return cls(x509=x509)
@@ -1237,7 +1293,8 @@ class CertChainStore(object):
         """Make instance of this cls from a string containing multiple PEM certs.
 
         Args:
-            pem (:obj:`str`): PEM string with multiple pems to convert to x509.
+            pem (:obj:`str`):
+                PEM string with multiple pems to convert to x509.
 
         Returns:
             (:obj:`CertChainStore`)
@@ -1250,7 +1307,8 @@ class CertChainStore(object):
         """Make instance of this cls from a file containing PEMs.
 
         Args:
-            path (:obj:`str` or :obj:`pathlib.Path`): Path to file containing PEMs.
+            path (:obj:`str` or :obj:`pathlib.Path`):
+                Path to file containing PEMs.
 
         Returns:
             (:obj:`CertChainStore`)
@@ -1268,7 +1326,8 @@ class CertChainStore(object):
         """Return all of the joined PEM strings for each cert in self.
 
         Returns:
-            (:obj:`str`): all PEM strings joined.
+            (:obj:`str`):
+                all PEM strings joined.
 
         """
         return "".join([c.pem for c in self])
@@ -1307,7 +1366,8 @@ class CertChainStore(object):
         """Write self.pem to disk.
 
         Args:
-            path (:obj:`str` or :obj:`pathlib.Path`): Path to write self.pem to.
+            path (:obj:`str` or :obj:`pathlib.Path`):
+                Path to write self.pem to.
 
         Returns:
             (:obj:`pathlib.Path`)
@@ -1421,7 +1481,8 @@ def clsname(obj):
     """Get objects class name.
 
     Args:
-        obj (:obj:`object`): The object or class to get the name of.
+        obj (:obj:`object`):
+            The object or class to get the name of.
 
     Returns:
         (:obj:`str`)
@@ -1436,12 +1497,21 @@ def hexify(obj, space=False, every=2, zerofill=True):
     """Convert bytes, int, or str to hex and optionally space it out.
 
     Args:
-        obj (:obj:`str` or :obj:`int` or :obj:`bytes`): The object to convert into hex.
-        zerofill (:obj:`bool`, optional): Zero fill the string if len is not even.
-            This gets around oddly sized hex strings. Defaults to: True.
-        space (:obj:`bool`, optional): Space the output string using join. Defaults to: False.
-        join (:obj:`str`, optional): Rejoining str. Defaults to: " ".
-        every (:obj:`str`, optional): The number of characters to split on. Defaults to: 2.
+        obj (:obj:`str` or :obj:`int` or :obj:`bytes`):
+            The object to convert into hex.
+        zerofill (:obj:`bool`, optional):
+            Zero fill the string if len is not even.
+            This gets around oddly sized hex strings.
+            Defaults to: True.
+        space (:obj:`bool`, optional):
+            Space the output string using join.
+            Defaults to: False.
+        join (:obj:`str`, optional):
+            Rejoining str.
+            Defaults to: " ".
+        every (:obj:`str`, optional):
+            The number of characters to split on.
+            Defaults to: 2.
 
     Returns:
         (:obj:`str`)
@@ -1464,9 +1534,12 @@ def indent(txt, n=4, s=" "):
     """Text indenter.
 
     Args:
-        txt (:obj:`str`): The text to indent.
-        n (:obj:`str`, optional): Number of s to indent txt. Defaults to: 4.
-        s (:obj:`str`, optional): Char to use for indent. Defaults to: " ".
+        txt (:obj:`str`):
+            The text to indent.
+        n (:obj:`str`, optional):
+            Number of s to indent txt. Defaults to: 4.
+        s (:obj:`str`, optional):
+            Char to use for indent. Defaults to: " ".
 
     Returns:
         (:obj:`str`)
@@ -1484,14 +1557,23 @@ def write_file(path, text, overwrite=False, mkparent=True, protect=True):
     """Write text to path.
 
     Args:
-        path (:obj:`str` or :obj:`pathlib.Path`): The path to write text to.
-        text (:obj:`str`): The text to write to path.
-        overwrite (:obj:`bool`, optional): Overwite file if exists. Defaults to: False.
-        mkparent (:obj:`bool`, optional): Create parent directory if not exist. Defaults to: True.
-        protect (:obj:`bool`, optional): Set file 0600 and parent 0700. Defaults to: True.
+        path (:obj:`str` or :obj:`pathlib.Path`):
+            The path to write text to.
+        text (:obj:`str`):
+            The text to write to path.
+        overwrite (:obj:`bool`, optional):
+            Overwite file if exists.
+            Defaults to: False.
+        mkparent (:obj:`bool`, optional):
+            Create parent directory if not exist.
+            Defaults to: True.
+        protect (:obj:`bool`, optional):
+            Set file 0600 and parent 0700.
+            Defaults to: True.
 
     Raises:
-        (:obj:`CertHumanError`): path exists and not overwrite, parent not exist and not mkparent.
+        (:obj:`CertHumanError`):
+            path exists and not overwrite, parent not exist and not mkparent.
 
     Returns:
         (:obj:`pathlib.Path`)
@@ -1530,10 +1612,12 @@ def read_file(path):
     """Read text from path.
 
     Args:
-        path (:obj:`str` or :obj:`pathlib.Path`): Path to file to read.
+        path (:obj:`str` or :obj:`pathlib.Path`):
+            Path to file to read.
 
     Raises:
-        (:obj:`CertHumanError`): if path does not exist.
+        (:obj:`CertHumanError`):
+            if path does not exist.
 
     Returns:
         (:obj:`str`)
@@ -1552,7 +1636,8 @@ def find_certs(txt):
     """Split text with multiple certificates into a list of certificates.
 
     Args:
-        txt (:obj:`str`): the text to find certificates in.
+        txt (:obj:`str`):
+            the text to find certificates in.
 
     Returns:
         (:obj:`list` of :obj:`str`)
@@ -1567,7 +1652,8 @@ def asn1_to_der(asn1):
     """Convert from asn1crypto x509 to DER bytes.
 
     Args:
-        asn1: (:obj:`x509.Certificate`) asn1crypto x509 to convert to DER bytes
+        asn1 (:obj:`x509.Certificate`):
+            asn1crypto x509 to convert to DER bytes
 
     Returns:
         (:obj:`bytes`)
@@ -1580,7 +1666,8 @@ def asn1_to_x509(asn1):
     """Convert from asn1crypto x509 to OpenSSL x509.
 
     Args:
-        asn1: (:obj:`x509.Certificate`) asn1crypto x509 to convert to OpenSSL x509
+        asn1 (:obj:`x509.Certificate`):
+            asn1crypto x509 to convert to OpenSSL x509
 
     Returns:
         (:obj:`OpenSSL.crypto.X509`)
@@ -1593,7 +1680,8 @@ def der_to_asn1(der):
     """Convert from DER bytes to asn1crypto x509.
 
     Args:
-        der (:obj:`bytes`): DER bytes string to convert to :obj:`x509.Certificate`.
+        der (:obj:`bytes`):
+            DER bytes string to convert to :obj:`x509.Certificate`.
 
     Returns:
         (:obj:`x509.Certificate`)
@@ -1606,7 +1694,8 @@ def der_to_x509(der):
     """Convert from DER bytes to OpenSSL x509.
 
     Args:
-        der (:obj:`bytes`): DER bytes string to convert to :obj:`x509.Certificate`.
+        der (:obj:`bytes`):
+            DER bytes string to convert to :obj:`x509.Certificate`.
 
     Returns:
         (:obj:`OpenSSL.crypto.X509`)
@@ -1619,7 +1708,8 @@ def pem_to_x509(pem):
     """Convert from PEM str to OpenSSL x509.
 
     Args:
-        pem (:obj:`str`): PEM string to convert to x509 certificate object.
+        pem (:obj:`str`):
+            PEM string to convert to x509 certificate object.
 
     Returns:
         (:obj:`OpenSSL.crypto.X509`)
@@ -1632,7 +1722,8 @@ def pems_to_x509(pem):
     """Convert from PEM str with multiple certs to list of OpenSSL x509s.
 
     Args:
-        pem (:obj:`str`): PEM string with multiple certs to convert to x509 certificate object.
+        pem (:obj:`str`):
+            PEM string with multiple certs to convert to x509 certificate object.
 
     Returns:
         (:obj:`list` of :obj:`OpenSSL.crypto.X509`)
@@ -1645,7 +1736,8 @@ def x509_to_asn1(x509):
     """Convert from OpenSSL x509 to asn1crypto x509.
 
     Args:
-        x509 (:obj:`OpenSSL.crypto.X509`): x509 object to convert to :obj:`x509.Certificate`.
+        x509 (:obj:`OpenSSL.crypto.X509`):
+            x509 object to convert to :obj:`x509.Certificate`.
 
     Returns:
         (:obj:`x509.Certificate`)
@@ -1658,7 +1750,8 @@ def x509_to_der(x509):
     """Convert from OpenSSL x509 to DER bytes.
 
     Args:
-        x509 (:obj:`OpenSSL.crypto.X509`): x509 certificate object to convert to DER.
+        x509 (:obj:`OpenSSL.crypto.X509`):
+            x509 certificate object to convert to DER.
 
     Returns:
         (:obj:`bytes`)
@@ -1671,7 +1764,8 @@ def x509_to_pem(x509):
     """Convert from OpenSSL x509 to PEM str.
 
     Args:
-        x509 (:obj:`OpenSSL.crypto.X509`): x509 certificate object to convert to PEM.
+        x509 (:obj:`OpenSSL.crypto.X509`):
+            x509 certificate object to convert to PEM.
 
     Returns:
         (:obj:`str`)

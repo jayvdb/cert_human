@@ -1,6 +1,13 @@
 Release History
 ===============
 
+1.0.7 (2019-01-24)
+------------------
+
+- Linting fixes
+- make WithCert classes failsafe for sockets that don't have a connection attribute
+- Fix test_cert to pass verify thru to requests
+
 1.0.4 (2019-01-03)
 ------------------
 

@@ -21,58 +21,69 @@ THIS_DIR = pathlib.Path(__file__).absolute().parent
 
 
 def prepare_url(value):
-    httpbin_url = value.url.rstrip('/') + '/'
+    """Pass."""
+    httpbin_url = value.url.rstrip("/") + "/"
 
     def inner(*suffix):
-        return urljoin(httpbin_url, '/'.join(suffix))
+        return urljoin(httpbin_url, "/".join(suffix))
 
     return inner
 
 
 @pytest.fixture
 def httpbin(httpbin):
+    """Pass."""
     return prepare_url(httpbin)
 
 
 @pytest.fixture
 def httpbin_secure(httpbin_secure):
+    """Pass."""
     return prepare_url(httpbin_secure)
 
 
 @pytest.fixture
 def cert_dir():
+    """Pass."""
     return THIS_DIR / "certs"
 
 
 @pytest.fixture
 def example_cert(cert_dir):
+    """Pass."""
     return cert_dir / "cert.pem"
 
 
 @pytest.fixture
 def other_cert(cert_dir):
+    """Pass."""
     return cert_dir / "othercert.pem"
 
 
 @pytest.fixture
 def ec_cert(cert_dir):
+    """Pass."""
     return cert_dir / "eccert.pem"
 
 
 @pytest.fixture
 def httpbin_builtin_cert_dir():
+    """Pass."""
     return pathlib.Path(pytest_httpbin.serve.CERT_DIR).absolute()
 
 
 @pytest.fixture
 def httpbin_builtin_cert(httpbin_builtin_cert_dir):
+    """Pass."""
     return httpbin_builtin_cert_dir / "cert.pem"
 
 
 @pytest.fixture
 def httpbin_cert(monkeypatch, example_cert, cert_dir):
+    """Pass."""
     # patch the pytest_httpbin.serve.CERT_DIR to use our own cert_dir
-    # pytest_httpbin.serve.SecureWSGIServer offers certs using key.pem and cert.pem from CERT_DIR
+    # pytest_httpbin.serve.SecureWSGIServer offers certs using
+    # key.pem and cert.pem from CERT_DIR
     monkeypatch.setattr(pytest_httpbin.serve, "CERT_DIR", format(cert_dir))
     # return the cert that will be offered by pytest_httpbin.serve.SecureWSGIServer
     return format(example_cert)
