@@ -105,7 +105,12 @@ setup(
     scripts=["cert_human_cli.py"],
     include_package_data=True,
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
-    install_requires=["requests[security]", 'pathlib2;python_version<"3.0"'],
+    install_requires=[
+        "pathlib2",
+        "python_version<3.0",
+        "requests[security]",
+        "six>=1.12.0",
+    ],
     tests_require=[
         "pytest-httpbin>=0.0.7",
         "pytest-cov",

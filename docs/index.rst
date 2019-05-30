@@ -66,7 +66,7 @@ You can clone the public repository:
 Once you have a copy of the source, you can embed it in your own Python
 package, or install it into your site-packages easily::
 
-    $ cd requests
+    $ cd cert_human
     $ pip install .
 
 
