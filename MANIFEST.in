@@ -1,2 +1,4 @@
 include README.md LICENSE HISTORY.md pytest.ini requirements.txt Pipfile Pipfile.lock
+include tox.ini
 recursive-include tests *.py
+recursive-include tests/certs *.pem *.sh
